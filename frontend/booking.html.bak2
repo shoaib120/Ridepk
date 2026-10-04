@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Book a Ride — RidePK</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --orange: #ff6b00;
+      --dark:   #1a1a2e;
+      --bg:     #f5f6fa;
+      --card:   #ffffff;
+      --text:   #222;
+      --muted:  #666;
+      --border: #e0e0e0;
+      --green:  #27ae60;
+      --red:    #e74c3c;
+      --blue:   #2980b9;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── NAVBAR ── */
+    .navbar {
+      background: var(--dark); padding: 0 24px; height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 1000;
+    }
+    .logo { color: #fff; font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 800; text-decoration: none; }
+    .logo span { color: var(--orange); }
+    .btn-logout {
+      background: transparent; border: 1px solid #555; color: #ccc;
+      padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+    .btn-logout:hover { border-color: var(--orange); color: var(--orange); }
+
+    /* ── LAYOUT ── */
+    .page-wrap { display: flex; height: calc(100vh - 60px); }
+    .map-side  { flex: 1; position: relative; overflow: hidden; }
+    #map { width: 100%; height: 100%; }
+
+    /* ── BOOKING PANEL ── */
+    .booking-panel {
+      width: 380px; background: #fff;
+      border-left: 1px solid var(--border);
+      overflow-y: auto; flex-shrink: 0;
+    }
+    .bp-inner { padding: 20px; }
+    .bp-inner h2 { font-size: 1.2rem; font-weight: 800; color: var(--dark); margin-bottom: 18px; }
+
+    /* ── LOCATION INPUTS ── */
+    .loc-input-wrap { position: relative; margin-bottom: 10px; }
+    .loc-input-wrap .loc-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 1rem; pointer-events: none; }
+    .loc-input-wrap input {
+      width: 100%; padding: 12px 12px 12px 36px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 0.9rem; font-family: inherit; color: var(--text);
+      background: #fff; transition: border-color 0.2s;
+    }
+    .loc-input-wrap input:focus { outline: none; border-color: var(--orange); }
+
+    /* ── SUGGESTIONS ── */
+    .suggestions {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: #fff; border: 1.5px solid var(--orange); border-top: none;
+      border-radius: 0 0 10px 10px; z-index: 9999;
+      max-height: 220px; overflow-y: auto; display: none;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+    }
+    .suggestion-item {
+      padding: 10px 14px; font-size: 0.88rem; cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .suggestion-item:hover { background: #fff8f0; color: var(--orange); }
+    .suggestion-item .sug-icon { font-size: 0.85rem; color: #999; min-width: 20px; }
+    .suggestion-item:last-child { border-bottom: none; }
+
+    /* ── VEHICLE TYPE ── */
+    .section-label { font-size: 0.8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+    .vtype-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .vtype-card { border: 2px solid var(--border); border-radius: 10px; padding: 12px 8px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+    .vtype-card:hover { border-color: var(--orange); background: #fff8f0; }
+    .vtype-card.sel  { border-color: var(--orange); background: #fff3e8; }
+    .vtype-card .vt-icon  { font-size: 1.6rem; margin-bottom: 4px; }
+    .vtype-card .vt-name  { font-size: 0.8rem; font-weight: 700; color: var(--dark); }
+    .vtype-card .vt-price { font-size: 0.85rem; font-weight: 700; color: var(--orange); margin-top: 2px; }
+    .vtype-card .vt-tag   { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: var(--orange); color: #fff; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+
+    /* ── FARE BOX ── */
+    .fare-box { background: var(--bg); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid var(--border); display: none; }
+    .fare-box.show { display: block; }
+    .fare-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.88rem; }
+    .fare-row:last-child { margin-bottom: 0; padding-top: 8px; border-top: 1px solid var(--border); font-weight: 700; font-size: 0.95rem; }
+    .fare-label { color: var(--muted); }
+    .fare-val   { color: var(--dark); font-weight: 600; }
+    .fare-val.total { color: var(--orange); font-size: 1.05rem; }
+
+    /* ── FARE NEGOTIATION BOX ── */
+    .negotiate-box {
+      background: #fff8e1; border: 1.5px solid #f39c12;
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; display: none;
+    }
+    .negotiate-box.show { display: block; }
+    .negotiate-box h4 { font-size: 0.9rem; font-weight: 700; color: #856404; margin-bottom: 10px; }
+    .negotiate-hint { font-size: 0.78rem; color: #856404; margin-bottom: 10px; line-height: 1.4; }
+    .negotiate-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .negotiate-row label { font-size: 0.82rem; font-weight: 600; color: var(--dark); white-space: nowrap; }
+    .negotiate-row input {
+      flex: 1; padding: 8px 12px; border: 1.5px solid #f39c12;
+      border-radius: 8px; font-size: 0.9rem; font-family: inherit; color: var(--dark);
+    }
+    .negotiate-row input:focus { outline: none; border-color: var(--orange); }
+    .btn-negotiate {
+      background: #f39c12; color: #fff; border: none;
+      padding: 9px 16px; border-radius: 8px; font-size: 0.85rem;
+      font-weight: 700; cursor: pointer; width: 100%;
+    }
+    .btn-negotiate:hover { opacity: 0.9; }
+    .btn-negotiate:disabled { opacity: 0.5; cursor: not-allowed; }
+    #negotiate-status { font-size: 0.82rem; margin-top: 8px; color: var(--muted); display: none; }
+
+    /* ── COUNTER-OFFER REJECTED BANNER ── */
+    .offer-rejected-banner {
+      background: #fde9e9; border: 1.5px solid var(--red);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;
+      font-size: 0.85rem; color: var(--red); display: none;
+    }
+
+    /* ── BOOK BUTTON ── */
+    .btn-book { background: var(--orange); color: #fff; border: none; padding: 15px; border-radius: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; width: 100%; font-family: inherit; transition: opacity 0.2s; margin-top: 4px; }
+    .btn-book:hover { opacity: 0.9; }
+    .btn-book:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── LOCATION DETECT ── */
+    .detect-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--muted); margin-bottom: 14px; cursor: pointer; }
+    .detect-row:hover { color: var(--orange); }
+    #detect-status { font-size: 0.82rem; margin-bottom: 10px; display: none; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    /* ── WAITING CARD ── */
+    .waiting-card { background: #fff8e1; border: 1.5px solid #f39c12; border-radius: 12px; padding: 16px; margin-bottom: 16px; text-align: center; display: none; }
+    .waiting-card.show { display: block; }
+    .waiting-card .spinner { width: 28px; height: 28px; border: 3px solid #f39c12; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; margin-bottom: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-cancel-ride { margin-top: 10px; background: none; border: 1px solid #f39c12; color: #856404; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; }
+
+    /* ── DRIVER FOUND CARD ── */
+    .driver-found-card { background: #f0fff8; border: 1.5px solid var(--green); border-radius: 12px; padding: 16px; margin-bottom: 16px; display: none; }
+    .driver-found-card.show { display: block; }
+    .driver-found-card h4 { color: var(--green); font-size: 0.95rem; margin-bottom: 10px; }
+    .driver-info-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.88rem; }
+    .driver-info-row .di-label { color: var(--muted); }
+    .driver-info-row .di-val   { font-weight: 600; color: var(--dark); }
+    .driver-phone-btn { display: block; background: var(--green); color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; font-weight: 700; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; width: 100%; }
+    .btn-cancel-active { display: block; margin-top: 10px; background: none; border: 1px solid var(--red); color: var(--red); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; width: 100%; text-align: center; }
+    .btn-cancel-active:hover { background: #fff0f0; }
+
+    /* ── CHAT PANEL ── */
+    .chat-panel { background: #fff; border: 1.5px solid var(--border); border-radius: 12px; margin-bottom: 16px; display: none; overflow: hidden; }
+    .chat-panel.show { display: block; }
+    .chat-header { background: var(--dark); color: #fff; padding: 10px 16px; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .chat-messages { height: 220px; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #f9f9f9; }
+    .chat-bubble { max-width: 80%; padding: 8px 12px; border-radius: 12px; font-size: 0.85rem; line-height: 1.4; }
+    .chat-bubble.me { align-self: flex-end; background: var(--orange); color: #fff; border-bottom-right-radius: 4px; }
+    .chat-bubble.them { align-self: flex-start; background: #e9e9e9; color: var(--dark); border-bottom-left-radius: 4px; }
+    .chat-bubble .bubble-time { font-size: 0.7rem; opacity: 0.7; margin-top: 3px; }
+    .chat-input-row { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); background: #fff; }
+    .chat-input-row input { flex: 1; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 20px; font-size: 0.85rem; font-family: inherit; }
+    .chat-input-row input:focus { outline: none; border-color: var(--orange); }
+    .btn-chat-send { background: var(--orange); color: #fff; border: none; padding: 8px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; cursor: pointer; }
+
+    /* ── CANCEL MODAL ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal-box { background: #fff; border-radius: 16px; padding: 28px; width: 90%; max-width: 400px; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    .modal-box h3 { font-size: 1.1rem; font-weight: 800; color: var(--dark); margin-bottom: 8px; }
+    .modal-box p  { font-size: 0.88rem; color: var(--muted); margin-bottom: 16px; }
+    .modal-reasons { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .reason-btn {
+      background: #f5f5f5; border: 1.5px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; text-align: left;
+      font-size: 0.88rem; cursor: pointer; transition: all 0.15s;
+    }
+    .reason-btn:hover, .reason-btn.sel { border-color: var(--red); background: #fff0f0; color: var(--red); }
+    .reason-custom { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.88rem; font-family: inherit; margin-bottom: 16px; resize: none; }
+    .reason-custom:focus { outline: none; border-color: var(--red); }
+    .modal-actions { display: flex; gap: 10px; }
+    .btn-modal-cancel-confirm { flex: 1; background: var(--red); color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 0.9rem; font-weight: 700; cursor: pointer; }
+    .btn-modal-back  { flex: 1; background: #f5f5f5; color: var(--muted); border: 1px solid var(--border); padding: 12px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+
+    /* ── TOAST ── */
+    #toast { display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--dark); color: #fff; padding: 14px 22px; border-radius: 10px; border-left: 4px solid var(--orange); box-shadow: 0 8px 24px rgba(0,0,0,0.35); z-index: 9999; font-size: 0.9rem; max-width: 440px; width: 90%; }
+
+    @media (max-width: 680px) {
+      .page-wrap { flex-direction: column; }
+      .map-side { height: 220px; flex: none; }
+      .booking-panel { width: 100%; border-left: none; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a href="index.html" class="logo">🚗 Ride<span>PK</span></a>
+  <button class="btn-logout" onclick="window.location.href='index.html'">← Back</button>
+</nav>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- CANCEL REASON MODAL -->
+<div class="modal-overlay" id="cancel-modal">
+  <div class="modal-box">
+    <h3>❌ Cancel Ride</h3>
+    <p>Please select a reason for cancellation:</p>
+    <div class="modal-reasons" id="modal-reasons">
+      <button class="reason-btn" onclick="selectReason(this, 'Changed my mind')">Changed my mind</button>
+      <button class="reason-btn" onclick="selectReason(this, 'Driver is taking too long')">Driver is taking too long</button>
+      <button class="reason-btn" onclick="selectReason(this, 'Found another ride')">Found another ride</button>
+      <button class="reason-btn" onclick="selectReason(this, 'Wrong pickup location entered')">Wrong pickup location entered</button>
+      <button class="reason-btn" onclick="selectReason(this, 'Emergency')">Emergency</button>
+    </div>
+    <textarea class="reason-custom" id="cancel-custom-reason" rows="2" placeholder="Or type your own reason..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-modal-back" onclick="closeCancelModal()">Go Back</button>
+      <button class="btn-modal-cancel-confirm" id="btn-confirm-cancel" onclick="confirmCancelRide()">Confirm Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-wrap">
+
+  <!-- MAP -->
+  <div class="map-side">
+    <div id="map"></div>
+  </div>
+
+  <!-- BOOKING PANEL -->
+  <div class="booking-panel">
+    <div class="bp-inner">
+      <h2>Book Your Ride</h2>
+
+      <!-- Location detect -->
+      <div class="detect-row" onclick="detectLocation()">📍 Use my current location</div>
+      <div id="detect-status"></div>
+
+      <!-- Pickup -->
+      <div class="loc-input-wrap" style="position:relative">
+        <span class="loc-icon">🟢</span>
+        <input type="text" id="pickup-input" placeholder="Pickup location" autocomplete="off"
+               oninput="onLocInput(this,'pickup')" onfocus="onLocFocus('pickup')" onblur="onLocBlur('pickup')"
+               onkeydown="onLocKeydown(event,'pickup')"/>
+        <div class="suggestions" id="pickup-suggestions"></div>
+      </div>
+
+      <!-- Destination -->
+      <div class="loc-input-wrap" style="position:relative">
+        <span class="loc-icon">🔴</span>
+        <input type="text" id="dest-input" placeholder="Where to?" autocomplete="off"
+               oninput="onLocInput(this,'dest')" onfocus="onLocFocus('dest')" onblur="onLocBlur('dest')"
+               onkeydown="onLocKeydown(event,'dest')"/>
+        <div class="suggestions" id="dest-suggestions"></div>
+      </div>
+
+      <hr class="divider"/>
+
+      <!-- Vehicle type -->
+      <div class="section-label">Choose Vehicle Type</div>
+      <div class="vtype-grid">
+        <div class="vtype-card" id="vt-motorbike" onclick="pickVehicle('motorbike')">
+          <div class="vt-icon">🏍️</div>
+          <div class="vt-name">Motorbike</div>
+          <div class="vt-price" id="vp-motorbike">Rs 60+</div>
+          <div class="vt-tag">Cheapest</div>
+        </div>
+        <div class="vtype-card" id="vt-rickshaw" onclick="pickVehicle('rickshaw')">
+          <div class="vt-icon">🛺</div>
+          <div class="vt-name">Rickshaw</div>
+          <div class="vt-price" id="vp-rickshaw">Rs 80+</div>
+        </div>
+        <div class="vtype-card sel" id="vt-car" onclick="pickVehicle('car')">
+          <div class="vt-icon">🚗</div>
+          <div class="vt-name">Car</div>
+          <div class="vt-price" id="vp-car">Rs 120+</div>
+        </div>
+      </div>
+
+      <!-- Fare estimate -->
+      <div class="fare-box" id="fare-box">
+        <div class="fare-row">
+          <span class="fare-label">📏 Distance</span>
+          <span class="fare-val" id="fare-dist">—</span>
+        </div>
+        <div class="fare-row">
+          <span class="fare-label">⏱️ Est. Time</span>
+          <span class="fare-val" id="fare-time">—</span>
+        </div>
+        <div class="fare-row">
+          <span class="fare-label">Rate</span>
+          <span class="fare-val" id="fare-rate">—</span>
+        </div>
+        <div class="fare-row">
+          <span class="fare-label"><strong>Estimated Fare</strong></span>
+          <span class="fare-val total" id="fare-total">—</span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:6px">
+          ⚡ Final price set by driver · You can negotiate below
+        </div>
+      </div>
+
+      <!-- Fare Negotiation -->
+      <div class="negotiate-box" id="negotiate-box">
+        <h4>💬 Counter-Offer (Optional)</h4>
+        <div class="negotiate-hint">Enter a lower fare below (up to <strong>10% less</strong>) — your offer will be sent when you click "Find a Driver". Leave blank to go with the estimated fare.</div>
+        <div id="offer-rejected-banner" class="offer-rejected-banner">
+          ❌ Driver rejected your offer. Fare returned to original estimate.
+        </div>
+        <div class="negotiate-row">
+          <label>Your Offer (Rs)</label>
+          <input type="number" id="offer-input" min="0" step="1" placeholder="e.g. 270" oninput="onOfferInput(this)"/>
+        </div>
+        <div id="offer-limits" style="font-size:0.78rem;color:var(--muted);margin-bottom:8px"></div>
+        <div id="negotiate-status"></div>
+      </div>
+
+      <!-- Waiting for driver card -->
+      <div class="waiting-card" id="waiting-card">
+        <div class="spinner"></div>
+        <div style="font-weight:700;color:#856404;margin-bottom:4px">Looking for a driver...</div>
+        <div style="font-size:0.82rem;color:#856404" id="waiting-text">Request sent. Nearby drivers will be notified.</div>
+        <button class="btn-cancel-ride" onclick="openCancelModal()">Cancel Ride</button>
+      </div>
+
+      <!-- Driver found card -->
+      <div class="driver-found-card" id="driver-found-card">
+        <h4>✅ Driver on the way!</h4>
+        <div class="driver-info-row">
+          <span class="di-label">Driver</span>
+          <span class="di-val" id="di-name">—</span>
+        </div>
+        <div class="driver-info-row">
+          <span class="di-label">Vehicle</span>
+          <span class="di-val" id="di-vehicle">—</span>
+        </div>
+        <div class="driver-info-row">
+          <span class="di-label">Plate</span>
+          <span class="di-val" id="di-plate">—</span>
+        </div>
+        <div class="driver-info-row">
+          <span class="di-label">Rating</span>
+          <span class="di-val" id="di-rating">—</span>
+        </div>
+        <div class="driver-info-row" id="agreed-fare-row" style="display:none">
+          <span class="di-label">Agreed Fare</span>
+          <span class="di-val" id="di-fare" style="color:var(--green)">—</span>
+        </div>
+        <a id="di-phone-btn" class="driver-phone-btn" href="#">📞 Call Driver</a>
+        <button class="btn-cancel-active" onclick="openCancelModal()">Cancel Ride</button>
+      </div>
+
+      <!-- In-ride chat (shown after driver accepts) -->
+      <div class="chat-panel" id="chat-panel">
+        <div class="chat-header">💬 Chat with Driver</div>
+        <div class="chat-messages" id="chat-messages">
+          <div style="text-align:center;color:var(--muted);font-size:0.82rem;margin:auto">Chat starts once driver accepts the ride.</div>
+        </div>
+        <div class="chat-input-row">
+          <input type="text" id="chat-input" placeholder="Type a message..." maxlength="500"
+                 onkeydown="if(event.key==='Enter') sendChatMessage()"/>
+          <button class="btn-chat-send" onclick="sendChatMessage()">Send</button>
+        </div>
+      </div>
+
+      <!-- Book button -->
+      <button class="btn-book" id="btn-book" onclick="bookRide()">🚗 Find a Driver</button>
+
+      <div style="font-size:0.78rem;color:var(--muted);text-align:center;margin-top:12px">
+        RidePK connects you with local drivers. You negotiate directly with the driver.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// =========================================================
+//  CONFIGURATION
+// =========================================================
+var API = 'http://localhost:5000';
+
+var PRICING = {
+  motorbike: { minFare: 60,  perKm: 35, label: 'Rs 35/km' },
+  rickshaw:  { minFare: 80,  perKm: 50, label: 'Rs 50/km' },
+  car:       { minFare: 120, perKm: 60, label: 'Rs 60/km' }
+};
+
+var selectedVehicle = 'car';
+var blurTimer       = {};
+var userLat         = null;
+var userLng         = null;
+var currentRideId   = null;
+var pollInterval    = null;
+var lastRoadKm      = 0;
+var lastDurationMin = 0;
+var estimatedFare   = 0;     // set when fare box is shown
+var selectedCancelReason = '';
+
+// Chat state
+var chatPollInterval = null;
+var lastMessageTime  = null;
+var isChatOpen       = false;
+var myPassengerId    = null;   // set after booking
+
+// ── Verified place coordinates — Mirpur Division & surrounding areas ──
+// These take priority over Nominatim to ensure correct geocoding for AJK places.
+var MIRPUR_PLACES_DICT = {
+  // === MIRPUR DIVISION CITIES ===
+  'mirpur': { lat: 33.1483, lng: 73.7468 },
+  'mirpur city': { lat: 33.1483, lng: 73.7468 },
+  'mirpur ajk': { lat: 33.1483, lng: 73.7468 },
+  'dadyal': { lat: 33.2640, lng: 73.7830 },
+  'dadyal city': { lat: 33.2640, lng: 73.7830 },
+  'kotli': { lat: 33.5150, lng: 73.9022 },
+  'kotli city': { lat: 33.5150, lng: 73.9022 },
+  'bhimber': { lat: 32.9735, lng: 74.0557 },
+  'bhimber city': { lat: 32.9735, lng: 74.0557 },
+  'samahni': { lat: 33.0139, lng: 73.9636 },
+  'barnala': { lat: 33.3500, lng: 73.5500 },
+  'dudyal': { lat: 33.5094, lng: 73.5831 },
+  'islamgarh': { lat: 33.1906, lng: 73.8311 },
+  'chakswari': { lat: 33.2300, lng: 73.7900 },
+  'mangla': { lat: 33.1387, lng: 73.6445 },
+  'mangla dam': { lat: 33.1387, lng: 73.6445 },
+  'forward kahuta': { lat: 33.5900, lng: 73.5500 },
+  'kahuta': { lat: 33.5900, lng: 73.3800 },
+  'pallandri': { lat: 33.7069, lng: 73.9261 },
+  'rawalakot': { lat: 33.8573, lng: 73.7614 },
+  'bagh': { lat: 33.9838, lng: 73.7720 },
+  'muzaffarabad': { lat: 34.3700, lng: 73.4710 },
+  'hattian bala': { lat: 34.0891, lng: 73.8238 },
+  'neelum': { lat: 34.5500, lng: 73.9700 },
+  'azad kashmir': { lat: 33.9200, lng: 73.7800 },
+  // === MIRPUR SUB-AREAS & NEIGHBORHOODS ===
+  'allama iqbal road mirpur': { lat: 33.1483, lng: 73.7510 },
+  'sector f mirpur': { lat: 33.1550, lng: 73.7600 },
+  'sector e mirpur': { lat: 33.1520, lng: 73.7550 },
+  'sector g mirpur': { lat: 33.1450, lng: 73.7650 },
+  'new mirpur': { lat: 33.1600, lng: 73.7500 },
+  'old mirpur': { lat: 33.1400, lng: 73.7400 },
+  'kiani road': { lat: 33.1480, lng: 73.7490 },
+  'hospital road mirpur': { lat: 33.1500, lng: 73.7460 },
+  'main bazar mirpur': { lat: 33.1460, lng: 73.7470 },
+  'city center mirpur': { lat: 33.1483, lng: 73.7468 },
+  'mirpur city center': { lat: 33.1480, lng: 73.7508 },
+  'chowk shaheedan mirpur': { lat: 33.1470, lng: 73.7460 },
+  'bus stand mirpur': { lat: 33.1440, lng: 73.7450 },
+  'mirpur bus stand': { lat: 33.1440, lng: 73.7450 },
+  // === LANDMARKS MIRPUR ===
+  'mirpur university': { lat: 33.1580, lng: 73.7510 },
+  'must mirpur': { lat: 33.1580, lng: 73.7510 },
+  'mirpur university of science & technology (must)': { lat: 33.1384, lng: 73.7425 },
+  'mirpur district hospital': { lat: 33.1500, lng: 73.7460 },
+  'dhq hospital, mirpur': { lat: 33.1460, lng: 73.7500 },
+  'mirpur airport': { lat: 33.1500, lng: 73.8000 },
+  'mirpur airport (chakswari)': { lat: 33.0700, lng: 73.8020 },
+  'raja chowk': { lat: 33.1470, lng: 73.7465 },
+  'jamia mosque mirpur': { lat: 33.1460, lng: 73.7470 },
+  'district courts mirpur': { lat: 33.1490, lng: 73.7480 },
+  'dc office mirpur': { lat: 33.1495, lng: 73.7485 },
+  'mirpur dc office': { lat: 33.1475, lng: 73.7498 },
+  'plaza mirpur': { lat: 33.1483, lng: 73.7470 },
+  // === DADYAL AREA ===
+  'dadyal bazar': { lat: 33.2650, lng: 73.7840 },
+  'dadyal road': { lat: 33.2620, lng: 73.7820 },
+  'dadyal hospital': { lat: 33.2640, lng: 73.7830 },
+  'dadyal hospital (thq)': { lat: 33.2640, lng: 73.7830 },
+  'dadyal bus stand': { lat: 33.2640, lng: 73.7830 },
+  'forward dadyal': { lat: 33.2700, lng: 73.7900 },
+  'chakothi dadyal': { lat: 33.2500, lng: 73.7700 },
+  // === ISLAMGARH AREA ===
+  'islamgarh bazar': { lat: 33.1910, lng: 73.8300 },
+  'islamgarh chowk': { lat: 33.1906, lng: 73.8311 },
+  'islamgarh road': { lat: 33.1900, lng: 73.8320 },
+  'islamgarh new city': { lat: 33.1700, lng: 73.7720 },
+  'islamgarh new city phase 1': { lat: 33.1695, lng: 73.7715 },
+  'islamgarh new city phase 2': { lat: 33.1705, lng: 73.7725 },
+  'islamgarh link road': { lat: 33.1660, lng: 73.7690 },
+  'islamgarh bypass': { lat: 33.1640, lng: 73.7660 },
+  'old islamgarh': { lat: 33.1635, lng: 73.7655 },
+  'islamgarh hospital (thq)': { lat: 33.1652, lng: 73.7682 },
+  'islamgarh police station': { lat: 33.1647, lng: 73.7672 },
+  'islamgarh petrol pump (pso)': { lat: 33.1643, lng: 73.7663 },
+  'islamgarh post office': { lat: 33.1649, lng: 73.7677 },
+  // === CHAKSWARI AREA ===
+  'chakswari bazar': { lat: 33.2310, lng: 73.7910 },
+  'chakswari chowk': { lat: 33.2300, lng: 73.7900 },
+  'chakswari road': { lat: 33.2280, lng: 73.7890 },
+  'chakswari new city': { lat: 33.0700, lng: 73.8040 },
+  'chakswari new city phase 1': { lat: 33.0695, lng: 73.8035 },
+  'chakswari new city phase 2': { lat: 33.0710, lng: 73.8045 },
+  // === KOTLI AREA ===
+  'kotli bazar': { lat: 33.5160, lng: 73.9030 },
+  'kotli hospital': { lat: 33.5150, lng: 73.9022 },
+  'kotli road': { lat: 33.5100, lng: 73.9000 },
+  'sehnsa kotli': { lat: 33.4700, lng: 73.8900 },
+  'sehnsa, kotli': { lat: 33.0100, lng: 73.8300 },
+  'tandar kotli': { lat: 33.5400, lng: 73.9200 },
+  // === BHIMBER AREA ===
+  'bhimber bazar': { lat: 32.9740, lng: 74.0560 },
+  'bhimber road': { lat: 32.9700, lng: 74.0500 },
+  'bhimber hospital': { lat: 32.9735, lng: 74.0557 },
+  'jatlan bhimber': { lat: 32.9900, lng: 74.0700 },
+  // === ROADS & INTERSECTIONS ===
+  'mirpur dadyal road': { lat: 33.4500, lng: 73.6500 },
+  'islamabad mirpur road': { lat: 33.2000, lng: 73.7500 },
+  'mirpur kotli road': { lat: 33.3000, lng: 73.8000 },
+  'mirpur bhimber road': { lat: 33.0500, lng: 73.9000 },
+  'chakswari road mirpur': { lat: 33.2500, lng: 73.7000 },
+  // === NEARBY PUNJAB/PAKISTAN CITIES ===
+  'rawalpindi': { lat: 33.5975, lng: 73.0428 },
+  'pindi': { lat: 33.5975, lng: 73.0428 },
+  'islamabad': { lat: 33.7294, lng: 73.0931 },
+  'gujrat': { lat: 32.5736, lng: 74.0790 },
+  'jhelum': { lat: 32.9425, lng: 73.7257 },
+  'gujranwala': { lat: 32.1568, lng: 74.1880 },
+  'lahore': { lat: 31.5204, lng: 74.3587 },
+  'sialkot': { lat: 32.4945, lng: 74.5229 },
+  'chakwal': { lat: 32.9332, lng: 72.8566 },
+  'attock': { lat: 33.7667, lng: 72.3667 },
+  'wah cantt': { lat: 33.7742, lng: 72.7803 },
+  'taxila': { lat: 33.7464, lng: 72.8398 },
+  'gujar khan': { lat: 33.2553, lng: 73.3054 },
+  'kahuta punjab': { lat: 33.5872, lng: 73.3905 },
+  'muridke': { lat: 31.8027, lng: 74.2637 },
+  'kharian': { lat: 32.8173, lng: 73.8853 },
+  'dina': { lat: 32.7665, lng: 73.5681 },
+  'lala musa': { lat: 32.7017, lng: 73.9578 },
+  'mangla punjab': { lat: 32.9370, lng: 73.6400 },
+  // === POPULAR SPOTS/LANDMARKS ===
+  'popular pizza': { lat: 33.1483, lng: 73.7468 },
+  'popular pizza, mirpur': { lat: 33.1488, lng: 73.7518 },
+  'mirpur plaza': { lat: 33.1483, lng: 73.7470 },
+  'gold crest mall': { lat: 33.1490, lng: 73.7480 },
+  'passport office mirpur': { lat: 33.1495, lng: 73.7488 },
+  'mirpur passport office': { lat: 33.1476, lng: 73.7496 },
+  'nadra office mirpur': { lat: 33.1492, lng: 73.7485 },
+  'kfс mirpur': { lat: 33.1483, lng: 73.7460 },
+  'kfc mirpur': { lat: 33.1484, lng: 73.7516 },
+  // === MIRPUR CITY SECTORS ===
+  'a-1 sector, mirpur': { lat: 33.1510, lng: 73.7520 },
+  'a-2 sector, mirpur': { lat: 33.1515, lng: 73.7535 },
+  'b-1 sector, mirpur': { lat: 33.1505, lng: 73.7545 },
+  'b-2 sector, mirpur': { lat: 33.1508, lng: 73.7560 },
+  'c-1 sector, mirpur': { lat: 33.1495, lng: 73.7555 },
+  'c-2 sector, mirpur': { lat: 33.1498, lng: 73.7565 },
+  'd-1 sector, mirpur': { lat: 33.1485, lng: 73.7562 },
+  'd-2 sector, mirpur': { lat: 33.1488, lng: 73.7575 },
+  'e-1 sector, mirpur': { lat: 33.1492, lng: 73.7545 },
+  'e-2 sector, mirpur': { lat: 33.1495, lng: 73.7555 },
+  'f-1 sector, mirpur': { lat: 33.1485, lng: 73.7480 },
+  'f-2 sector, mirpur': { lat: 33.1500, lng: 73.7500 },
+  'f-3 sector, mirpur': { lat: 33.1520, lng: 73.7520 },
+  'g-1 sector, mirpur': { lat: 33.1450, lng: 73.7450 },
+  'g-2 sector, mirpur': { lat: 33.1455, lng: 73.7470 },
+  'g-3 sector, mirpur': { lat: 33.1460, lng: 73.7490 },
+  'g-4 sector, mirpur': { lat: 33.1465, lng: 73.7510 },
+  'h-1 sector, mirpur': { lat: 33.1440, lng: 73.7430 },
+  'h-2 sector, mirpur': { lat: 33.1445, lng: 73.7445 },
+  'h-3 sector, mirpur': { lat: 33.1435, lng: 73.7460 },
+  'i-1 sector, mirpur': { lat: 33.1430, lng: 73.7475 },
+  'i-2 sector, mirpur': { lat: 33.1432, lng: 73.7490 },
+  'j-1 sector, mirpur': { lat: 33.1420, lng: 73.7505 },
+  'j-2 sector, mirpur': { lat: 33.1422, lng: 73.7520 },
+  'k-1 sector, mirpur': { lat: 33.1410, lng: 73.7535 },
+  'k-2 sector, mirpur': { lat: 33.1412, lng: 73.7548 },
+  // === MIRPUR MARKETS & CORE ===
+  'raja bazar, mirpur': { lat: 33.1470, lng: 73.7555 },
+  'new raja bazar, mirpur': { lat: 33.1472, lng: 73.7560 },
+  'allama iqbal road, mirpur': { lat: 33.1490, lng: 73.7530 },
+  'main bazar, mirpur': { lat: 33.1468, lng: 73.7548 },
+  'sunday bazar, mirpur': { lat: 33.1435, lng: 73.7455 },
+  'vegetable market, mirpur': { lat: 33.1466, lng: 73.7542 },
+  'cloth market, mirpur': { lat: 33.1469, lng: 73.7552 },
+  'plaza market, mirpur': { lat: 33.1482, lng: 73.7515 },
+  'mirpur bus terminal': { lat: 33.1415, lng: 73.7405 },
+  'mirpur old bus stand': { lat: 33.1420, lng: 73.7415 },
+  'mirpur bypass': { lat: 33.1420, lng: 73.7400 },
+  'link road, mirpur': { lat: 33.1440, lng: 73.7410 },
+  // === HOSPITALS MIRPUR ===
+  'cmh mirpur': { lat: 33.1350, lng: 73.7350 },
+  'holy family hospital, mirpur': { lat: 33.1473, lng: 73.7505 },
+  'al-shifa eye trust, mirpur': { lat: 33.1465, lng: 73.7510 },
+  'services hospital, mirpur': { lat: 33.1462, lng: 73.7515 },
+  'mirpur medical centre': { lat: 33.1458, lng: 73.7520 },
+  // === SCHOOLS MIRPUR ===
+  'ajk university, mirpur': { lat: 33.1380, lng: 73.7420 },
+  'university of ajk (city campus)': { lat: 33.1390, lng: 73.7435 },
+  'kashmir model school, mirpur': { lat: 33.1492, lng: 73.7512 },
+  'army public school, mirpur': { lat: 33.1355, lng: 73.7360 },
+  'city grammar school, mirpur': { lat: 33.1488, lng: 73.7508 },
+  'beaconhouse school, mirpur': { lat: 33.1402, lng: 73.7445 },
+  'roots school, mirpur': { lat: 33.1398, lng: 73.7440 },
+  'mirpur cadet college': { lat: 33.1320, lng: 73.7310 },
+  'government college, mirpur': { lat: 33.1468, lng: 73.7530 },
+  // === RESTAURANTS MIRPUR ===
+  'pizza palace, mirpur': { lat: 33.1485, lng: 73.7515 },
+  'mirpur food street': { lat: 33.1474, lng: 73.7558 },
+  'chatkhara restaurant, mirpur': { lat: 33.1470, lng: 73.7548 },
+  'mirpur tikka house': { lat: 33.1469, lng: 73.7545 },
+  'café one, mirpur': { lat: 33.1483, lng: 73.7519 },
+  'desi dhaba, mirpur': { lat: 33.1478, lng: 73.7505 },
+  'royal restaurant, mirpur': { lat: 33.1482, lng: 73.7513 },
+  'lasania restaurant, mirpur': { lat: 33.1477, lng: 73.7504 },
+  'naan house, mirpur': { lat: 33.1471, lng: 73.7549 },
+  // === HOTELS MIRPUR ===
+  'hotel one, mirpur': { lat: 33.1480, lng: 73.7510 },
+  'city guest house, mirpur': { lat: 33.1479, lng: 73.7509 },
+  'mirpur continental hotel': { lat: 33.1481, lng: 73.7514 },
+  'al-madina hotel, mirpur': { lat: 33.1467, lng: 73.7543 },
+  'park view hotel, mirpur': { lat: 33.1476, lng: 73.7500 },
+  // === MOSQUES MIRPUR ===
+  'mirpur masjid (jamia)': { lat: 33.1473, lng: 73.7496 },
+  'jamia mosque, raja bazar': { lat: 33.1469, lng: 73.7553 },
+  'eidgah ground, mirpur': { lat: 33.1458, lng: 73.7528 },
+  // === MIRPUR NEW CITY ===
+  'mirpur new city': { lat: 33.1560, lng: 73.7620 },
+  'new city phase 1, mirpur': { lat: 33.1555, lng: 73.7615 },
+  'new city phase 2, mirpur': { lat: 33.1565, lng: 73.7625 },
+  'new city phase 3, mirpur': { lat: 33.1575, lng: 73.7635 },
+  'chak beli khan, mirpur': { lat: 33.1550, lng: 73.7650 },
+  'chak beli khan road': { lat: 33.1540, lng: 73.7640 },
+  // === MANGLA AREA ===
+  'mangla cantt': { lat: 33.1280, lng: 73.6480 },
+  'mangla town': { lat: 33.1295, lng: 73.6490 },
+  'mangla dam view point': { lat: 33.1510, lng: 73.6510 },
+  'mangla power house': { lat: 33.1490, lng: 73.6470 },
+  'mangla lake': { lat: 33.1520, lng: 73.6520 },
+  'mangla sports complex': { lat: 33.1300, lng: 73.6495 },
+  // === KIRAN ===
+  'kiran': { lat: 33.1250, lng: 73.7350 },
+  'kiran town': { lat: 33.1252, lng: 73.7353 },
+  'kiran bazar': { lat: 33.1248, lng: 73.7348 },
+  // === JATLA ROAD ===
+  'jatla road, mirpur': { lat: 33.1530, lng: 73.7590 },
+  'jatla chowk': { lat: 33.1528, lng: 73.7585 },
+  'jatla village': { lat: 33.1525, lng: 73.7580 },
+  // === PIR GALI ===
+  'pir gali, mirpur': { lat: 33.1610, lng: 73.7630 },
+  'pir gali road': { lat: 33.1605, lng: 73.7625 },
+  'pir gali, islamgarh': { lat: 33.1680, lng: 73.7705 },
+  // === BANKS & ATMs MIRPUR ===
+  'hbl bank, mirpur': { lat: 33.1474, lng: 73.7498 },
+  'mcb bank, mirpur': { lat: 33.1477, lng: 73.7503 },
+  'ubl bank, mirpur': { lat: 33.1476, lng: 73.7501 },
+  'bank of ajk, main branch': { lat: 33.1475, lng: 73.7497 },
+  'meezan bank, mirpur': { lat: 33.1478, lng: 73.7506 },
+  // === PETROL PUMPS MIRPUR ===
+  'pso petrol pump, mirpur bypass': { lat: 33.1425, lng: 73.7405 },
+  'shell petrol pump, link road': { lat: 33.1438, lng: 73.7412 },
+  'total petrol pump, allama iqbal rd': { lat: 33.1491, lng: 73.7532 },
+  // === PARKS ===
+  'mirpur zoo & park': { lat: 33.1395, lng: 73.7455 },
+  'mirpur iqbal park': { lat: 33.1485, lng: 73.7522 },
+  // === POLICE ===
+  'mirpur police station (city)': { lat: 33.1470, lng: 73.7492 },
+  'mirpur district jail': { lat: 33.1360, lng: 73.7380 },
+  'traffic police office, mirpur': { lat: 33.1422, lng: 73.7408 },
+  // === MIRPUR PRESS/MISC ===
+  'mirpur press club': { lat: 33.1478, lng: 73.7502 },
+  'mirpur courts (kachehri)': { lat: 33.1472, lng: 73.7490 },
+  'mirpur gpo (post office)': { lat: 33.1480, lng: 73.7512 },
+  // === SALONS ===
+  'mirpur beauty salon (main bazar)': { lat: 33.1471, lng: 73.7551 },
+  'gents salon, f-2 sector': { lat: 33.1501, lng: 73.7501 },
+  'ladies beauty parlour, g-1': { lat: 33.1451, lng: 73.7451 },
+  // === VILLAGES & SMALL AREAS ===
+  'charhoi': { lat: 33.2800, lng: 73.7200 },
+  'khai gala': { lat: 33.4200, lng: 73.7800 },
+  'nakyal': { lat: 33.6500, lng: 73.7500 },
+  'sensa': { lat: 33.4800, lng: 73.8700 },
+  'khuiratta': { lat: 33.7300, lng: 73.9500 },
+  'chikar': { lat: 33.9200, lng: 73.6700 },
+  'hajira': { lat: 33.7500, lng: 73.8000 },
+  'abbaspur': { lat: 33.7800, lng: 73.8500 },
+  'sudhoti': { lat: 33.5700, lng: 73.7300 },
+  'nikyal': { lat: 33.7700, lng: 73.6200 },
+  'tain': { lat: 33.3300, lng: 73.5800 },
+  'thorar': { lat: 33.4000, lng: 73.6200 },
+  'mirpur cantonment': { lat: 33.1600, lng: 73.7550 },
+  'afzalpur': { lat: 33.5600, lng: 73.5200 },
+  'chinari': { lat: 34.1700, lng: 73.7200 },
+  'leepa valley': { lat: 34.3200, lng: 73.9200 },
+  'hjeera': { lat: 33.4500, lng: 73.5900 },
+  'sehri': { lat: 33.6100, lng: 73.6000 },
+  'khari sharif': { lat: 33.5200, lng: 73.6500 },
+  'pakhar': { lat: 33.4100, lng: 73.5600 },
+  'sarna': { lat: 33.2900, lng: 73.7600 },
+  'panjeri': { lat: 33.3700, lng: 73.7000 },
+  'qila dardar': { lat: 33.2500, lng: 73.8100 },
+  'jandala': { lat: 33.2300, lng: 73.7900 },
+  'samwal': { lat: 33.1700, lng: 73.8200 },
+  'gorah': { lat: 33.0800, lng: 73.9100 },
+  'chaksawari': { lat: 33.2300, lng: 73.7900 },
+  'mirpur road islamgarh': { lat: 33.1906, lng: 73.8311 },
+  'samahni, mirpur': { lat: 33.0900, lng: 73.7200 },
+  'government school, islamgarh': { lat: 33.1655, lng: 73.7685 },
+  'masjid road, islamgarh': { lat: 33.1645, lng: 73.7668 },
+  // Short alias lookups
+  'dr': { lat: 33.2640, lng: 73.7830 },   // Dadyal
+  'mg': { lat: 33.1387, lng: 73.6445 },   // Mangla
+  'isg': { lat: 33.2128, lng: 73.8012 },  // Islamgarh
+  'kl': { lat: 33.5150, lng: 73.9022 },   // Kotli
+  'mp': { lat: 33.1483, lng: 73.7468 },   // Mirpur
+  'rwp': { lat: 33.5975, lng: 73.0428 },  // Rawalpindi
+  'isb': { lat: 33.7294, lng: 73.0931 }   // Islamabad
+};
+
+// ── Build LANDMARK_COORDS array from MIRPUR_PLACES_DICT for compatibility ──
+var LANDMARK_COORDS = Object.keys(MIRPUR_PLACES_DICT).map(function(k) {
+  var c = MIRPUR_PLACES_DICT[k];
+  var name = k.replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
+  return { name: name, lat: c.lat, lng: c.lng };
+});
+// Also add original named entries used elsewhere in the code
+var _EXTRA_LANDMARKS = [
+  { name: 'A-1 Sector, Mirpur',              lat: 33.1510, lng: 73.7520 },
+  { name: 'A-2 Sector, Mirpur',              lat: 33.1515, lng: 73.7535 },
+  { name: 'B-1 Sector, Mirpur',              lat: 33.1505, lng: 73.7545 },
+  { name: 'B-2 Sector, Mirpur',              lat: 33.1508, lng: 73.7560 },
+  { name: 'C-1 Sector, Mirpur',              lat: 33.1495, lng: 73.7555 },
+  { name: 'C-2 Sector, Mirpur',              lat: 33.1498, lng: 73.7565 },
+  { name: 'D-1 Sector, Mirpur',              lat: 33.1485, lng: 73.7562 },
+  { name: 'D-2 Sector, Mirpur',              lat: 33.1488, lng: 73.7575 },
+  { name: 'E-1 Sector, Mirpur',              lat: 33.1492, lng: 73.7545 },
+  { name: 'E-2 Sector, Mirpur',              lat: 33.1495, lng: 73.7555 },
+  { name: 'F-1 Sector, Mirpur',              lat: 33.1485, lng: 73.7480 },
+  { name: 'F-2 Sector, Mirpur',              lat: 33.1500, lng: 73.7500 },
+  { name: 'F-3 Sector, Mirpur',              lat: 33.1520, lng: 73.7520 },
+  { name: 'G-1 Sector, Mirpur',              lat: 33.1450, lng: 73.7450 },
+  { name: 'G-2 Sector, Mirpur',              lat: 33.1455, lng: 73.7470 },
+  { name: 'G-3 Sector, Mirpur',              lat: 33.1460, lng: 73.7490 },
+  { name: 'G-4 Sector, Mirpur',              lat: 33.1465, lng: 73.7510 },
+  { name: 'H-1 Sector, Mirpur',              lat: 33.1440, lng: 73.7430 },
+  { name: 'H-2 Sector, Mirpur',              lat: 33.1445, lng: 73.7445 },
+  { name: 'H-3 Sector, Mirpur',              lat: 33.1435, lng: 73.7460 },
+  { name: 'I-1 Sector, Mirpur',              lat: 33.1430, lng: 73.7475 },
+  { name: 'I-2 Sector, Mirpur',              lat: 33.1432, lng: 73.7490 },
+  { name: 'J-1 Sector, Mirpur',              lat: 33.1420, lng: 73.7505 },
+  { name: 'J-2 Sector, Mirpur',              lat: 33.1422, lng: 73.7520 },
+  { name: 'K-1 Sector, Mirpur',              lat: 33.1410, lng: 73.7535 },
+  { name: 'K-2 Sector, Mirpur',              lat: 33.1412, lng: 73.7548 },
+
+  // ── MIRPUR CITY CENTER / CORE ──
+  { name: 'Mirpur City Center',               lat: 33.1480, lng: 73.7508 },
+  { name: 'Mirpur DC Office',                 lat: 33.1475, lng: 73.7498 },
+  { name: 'Mirpur Press Club',                lat: 33.1478, lng: 73.7502 },
+  { name: 'Mirpur Passport Office',           lat: 33.1476, lng: 73.7496 },
+  { name: 'Mirpur Courts (Kachehri)',         lat: 33.1472, lng: 73.7490 },
+  { name: 'Mirpur GPO (Post Office)',         lat: 33.1480, lng: 73.7512 },
+  { name: 'Mirpur Bus Terminal',              lat: 33.1415, lng: 73.7405 },
+  { name: 'Mirpur Old Bus Stand',             lat: 33.1420, lng: 73.7415 },
+  { name: 'Mirpur Bypass',                    lat: 33.1420, lng: 73.7400 },
+  { name: 'Link Road, Mirpur',                lat: 33.1440, lng: 73.7410 },
+
+  // ── MIRPUR BAZAARS & MARKETS ──
+  { name: 'Raja Bazar, Mirpur',               lat: 33.1470, lng: 73.7555 },
+  { name: 'New Raja Bazar, Mirpur',           lat: 33.1472, lng: 73.7560 },
+  { name: 'Allama Iqbal Road, Mirpur',        lat: 33.1490, lng: 73.7530 },
+  { name: 'Main Bazar, Mirpur',               lat: 33.1468, lng: 73.7548 },
+  { name: 'Sunday Bazar, Mirpur',             lat: 33.1435, lng: 73.7455 },
+  { name: 'Vegetable Market, Mirpur',         lat: 33.1466, lng: 73.7542 },
+  { name: 'Cloth Market, Mirpur',             lat: 33.1469, lng: 73.7552 },
+  { name: 'Plaza Market, Mirpur',             lat: 33.1482, lng: 73.7515 },
+
+  // ── HOSPITALS & MEDICAL ──
+  { name: 'DHQ Hospital, Mirpur',             lat: 33.1460, lng: 73.7500 },
+  { name: 'CMH Mirpur',                       lat: 33.1350, lng: 73.7350 },
+  { name: 'Holy Family Hospital, Mirpur',     lat: 33.1473, lng: 73.7505 },
+  { name: 'Al-Shifa Eye Trust, Mirpur',       lat: 33.1465, lng: 73.7510 },
+  { name: 'Services Hospital, Mirpur',        lat: 33.1462, lng: 73.7515 },
+  { name: 'Mirpur Medical Centre',            lat: 33.1458, lng: 73.7520 },
+
+  // ── SCHOOLS & UNIVERSITIES ──
+  { name: 'AJK University, Mirpur',           lat: 33.1380, lng: 73.7420 },
+  { name: 'University of AJK (City Campus)',  lat: 33.1390, lng: 73.7435 },
+  { name: 'Kashmir Model School, Mirpur',     lat: 33.1492, lng: 73.7512 },
+  { name: 'Army Public School, Mirpur',       lat: 33.1355, lng: 73.7360 },
+  { name: 'City Grammar School, Mirpur',      lat: 33.1488, lng: 73.7508 },
+  { name: 'Beaconhouse School, Mirpur',       lat: 33.1402, lng: 73.7445 },
+  { name: 'Roots School, Mirpur',             lat: 33.1398, lng: 73.7440 },
+  { name: 'Mirpur Cadet College',             lat: 33.1320, lng: 73.7310 },
+  { name: 'Government College, Mirpur',       lat: 33.1468, lng: 73.7530 },
+  { name: 'Mirpur University of Science & Technology (MUST)', lat: 33.1384, lng: 73.7425 },
+
+  // ── RESTAURANTS & FOOD ──
+  { name: 'Popular Pizza, Mirpur',            lat: 33.1488, lng: 73.7518 },
+  { name: 'Pizza Palace, Mirpur',             lat: 33.1485, lng: 73.7515 },
+  { name: 'Mirpur Food Street',               lat: 33.1474, lng: 73.7558 },
+  { name: 'Chatkhara Restaurant, Mirpur',     lat: 33.1470, lng: 73.7548 },
+  { name: 'Mirpur Tikka House',               lat: 33.1469, lng: 73.7545 },
+  { name: 'Café One, Mirpur',                 lat: 33.1483, lng: 73.7519 },
+  { name: 'Desi Dhaba, Mirpur',               lat: 33.1478, lng: 73.7505 },
+  { name: 'Royal Restaurant, Mirpur',         lat: 33.1482, lng: 73.7513 },
+  { name: 'Lasania Restaurant, Mirpur',       lat: 33.1477, lng: 73.7504 },
+  { name: 'Naan House, Mirpur',               lat: 33.1471, lng: 73.7549 },
+  { name: 'KFC Mirpur',                       lat: 33.1484, lng: 73.7516 },
+
+  // ── HOTELS ──
+  { name: 'Hotel One, Mirpur',                lat: 33.1480, lng: 73.7510 },
+  { name: 'City Guest House, Mirpur',         lat: 33.1479, lng: 73.7509 },
+  { name: 'Mirpur Continental Hotel',         lat: 33.1481, lng: 73.7514 },
+  { name: 'Al-Madina Hotel, Mirpur',          lat: 33.1467, lng: 73.7543 },
+  { name: 'Park View Hotel, Mirpur',          lat: 33.1476, lng: 73.7500 },
+
+  // ── MOSQUES & LANDMARKS ──
+  { name: 'Mirpur Masjid (Jamia)',            lat: 33.1473, lng: 73.7496 },
+  { name: 'Jamia Mosque, Raja Bazar',         lat: 33.1469, lng: 73.7553 },
+  { name: 'Eidgah Ground, Mirpur',            lat: 33.1458, lng: 73.7528 },
+
+  // ── MIRPUR NEW CITY / UPCOMING AREAS ──
+  { name: 'Mirpur New City',                  lat: 33.1560, lng: 73.7620 },
+  { name: 'New City Phase 1, Mirpur',         lat: 33.1555, lng: 73.7615 },
+  { name: 'New City Phase 2, Mirpur',         lat: 33.1565, lng: 73.7625 },
+  { name: 'New City Phase 3, Mirpur',         lat: 33.1575, lng: 73.7635 },
+
+  // ── CHAK BELI KHAN & SURROUNDINGS ──
+  { name: 'Chak Beli Khan, Mirpur',           lat: 33.1550, lng: 73.7650 },
+  { name: 'Chak Beli Khan Road',              lat: 33.1540, lng: 73.7640 },
+
+  // ── ISLAMGARH (TOWN & AREAS) ──
+  { name: 'Islamgarh',                        lat: 33.1650, lng: 73.7680 },
+  { name: 'Islamgarh Bazar',                  lat: 33.1648, lng: 73.7675 },
+  { name: 'Islamgarh New City',               lat: 33.1700, lng: 73.7720 },
+  { name: 'Islamgarh New City Phase 1',       lat: 33.1695, lng: 73.7715 },
+  { name: 'Islamgarh New City Phase 2',       lat: 33.1705, lng: 73.7725 },
+  { name: 'Islamgarh Link Road',              lat: 33.1660, lng: 73.7690 },
+  { name: 'Islamgarh Bypass',                 lat: 33.1640, lng: 73.7660 },
+  { name: 'Old Islamgarh',                    lat: 33.1635, lng: 73.7655 },
+  { name: 'Pir Gali, Islamgarh',              lat: 33.1680, lng: 73.7705 },
+  { name: 'Islamgarh Hospital (THQ)',         lat: 33.1652, lng: 73.7682 },
+  { name: 'Government School, Islamgarh',     lat: 33.1655, lng: 73.7685 },
+  { name: 'Masjid Road, Islamgarh',           lat: 33.1645, lng: 73.7668 },
+  { name: 'Islamgarh Police Station',         lat: 33.1647, lng: 73.7672 },
+  { name: 'Islamgarh Petrol Pump (PSO)',      lat: 33.1643, lng: 73.7663 },
+  { name: 'Islamgarh Post Office',            lat: 33.1649, lng: 73.7677 },
+
+  // ── JATLA ROAD AREA ──
+  { name: 'Jatla Road, Mirpur',               lat: 33.1530, lng: 73.7590 },
+  { name: 'Jatla Chowk',                      lat: 33.1528, lng: 73.7585 },
+  { name: 'Jatla Village',                    lat: 33.1525, lng: 73.7580 },
+
+  // ── PIR GALI ──
+  { name: 'Pir Gali, Mirpur',                 lat: 33.1610, lng: 73.7630 },
+  { name: 'Pir Gali Road',                    lat: 33.1605, lng: 73.7625 },
+
+  // ── CHAKSWARI NEW CITY ──
+  { name: 'Chakswari',                        lat: 33.0680, lng: 73.8020 },
+  { name: 'Chakswari New City',               lat: 33.0700, lng: 73.8040 },
+  { name: 'Chakswari New City Phase 1',       lat: 33.0695, lng: 73.8035 },
+  { name: 'Chakswari New City Phase 2',       lat: 33.0710, lng: 73.8045 },
+  { name: 'Mirpur Airport (Chakswari)',        lat: 33.0700, lng: 73.8020 },
+  { name: 'Chakswari Bazar',                  lat: 33.0678, lng: 73.8018 },
+  { name: 'Chakswari Road',                   lat: 33.0690, lng: 73.8028 },
+
+  // ── MANGLA ──
+  { name: 'Mangla Dam',                       lat: 33.1500, lng: 73.6500 },
+  { name: 'Mangla Cantt',                     lat: 33.1280, lng: 73.6480 },
+  { name: 'Mangla Town',                      lat: 33.1295, lng: 73.6490 },
+  { name: 'Mangla Dam View Point',            lat: 33.1510, lng: 73.6510 },
+  { name: 'Mangla Power House',               lat: 33.1490, lng: 73.6470 },
+  { name: 'Mangla Lake',                      lat: 33.1520, lng: 73.6520 },
+
+  // ── DADYAL ──
+  { name: 'Dadyal',                           lat: 33.2640, lng: 73.7830 },
+  { name: 'Dadyal Bazar',                     lat: 33.2650, lng: 73.7840 },
+  { name: 'Dadyal Bus Stand',                 lat: 33.2640, lng: 73.7830 },
+  { name: 'Dadyal Road',                      lat: 33.2620, lng: 73.7820 },
+  { name: 'Dadyal Hospital (THQ)',            lat: 33.2640, lng: 73.7830 },
+
+  // ── KIRAN ──
+  { name: 'Kiran',                            lat: 33.1250, lng: 73.7350 },
+  { name: 'Kiran Town',                       lat: 33.1252, lng: 73.7353 },
+  { name: 'Kiran Bazar',                      lat: 33.1248, lng: 73.7348 },
+
+  // ── PALLANDRI / NEARBY ──
+  { name: 'Samahni, Mirpur',                  lat: 33.0900, lng: 73.7200 },
+  { name: 'Sehnsa, Kotli',                    lat: 33.0100, lng: 73.8300 },
+
+  // ── SALONS & BEAUTY ──
+  { name: 'Mirpur Beauty Salon (Main Bazar)', lat: 33.1471, lng: 73.7551 },
+  { name: 'Gents Salon, F-2 Sector',          lat: 33.1501, lng: 73.7501 },
+  { name: 'Ladies Beauty Parlour, G-1',       lat: 33.1451, lng: 73.7451 },
+
+  // ── PETROL PUMPS & SERVICES ──
+  { name: 'PSO Petrol Pump, Mirpur Bypass',   lat: 33.1425, lng: 73.7405 },
+  { name: 'Shell Petrol Pump, Link Road',     lat: 33.1438, lng: 73.7412 },
+  { name: 'Total Petrol Pump, Allama Iqbal Rd',lat: 33.1491,lng: 73.7532 },
+
+  // ── BANKS & ATMs ──
+  { name: 'HBL Bank, Mirpur',                 lat: 33.1474, lng: 73.7498 },
+  { name: 'MCB Bank, Mirpur',                 lat: 33.1477, lng: 73.7503 },
+  { name: 'UBL Bank, Mirpur',                 lat: 33.1476, lng: 73.7501 },
+  { name: 'Bank of AJK, Main Branch',         lat: 33.1475, lng: 73.7497 },
+  { name: 'Meezan Bank, Mirpur',              lat: 33.1478, lng: 73.7506 },
+
+  // ── PARKS & RECREATION ──
+  { name: 'Mirpur Zoo & Park',                lat: 33.1395, lng: 73.7455 },
+  { name: 'Mirpur Iqbal Park',                lat: 33.1485, lng: 73.7522 },
+  { name: 'Mangla Sports Complex',            lat: 33.1300, lng: 73.6495 },
+
+  // ── POLICE STATIONS ──
+  { name: 'Mirpur Police Station (City)',     lat: 33.1470, lng: 73.7492 },
+  { name: 'Mirpur District Jail',             lat: 33.1360, lng: 73.7380 },
+  { name: 'Traffic Police Office, Mirpur',    lat: 33.1422, lng: 73.7408 }
+];
+_EXTRA_LANDMARKS.forEach(function(lm) {
+  LANDMARK_COORDS.push(lm);
+});
+
+// coordsByName: supports both lowercase dict keys and mixed-case landmark names
+var coordsByName = {};
+// Populate from the verified dict (lowercase keys)
+Object.keys(MIRPUR_PLACES_DICT).forEach(function(k) {
+  coordsByName[k] = MIRPUR_PLACES_DICT[k];
+});
+// Populate from LANDMARK_COORDS (mixed-case display names)
+LANDMARK_COORDS.forEach(function(lm) {
+  coordsByName[lm.name] = { lat: lm.lat, lng: lm.lng };
+  coordsByName[lm.name.toLowerCase()] = { lat: lm.lat, lng: lm.lng };
+});
+
+// ── Helper: lookup a place name in the local dictionary (case-insensitive, with prefix matching) ──
+function lookupLocalPlace(name) {
+  if (!name) return null;
+  var key = name.toLowerCase().trim();
+  if (MIRPUR_PLACES_DICT[key]) return { coords: MIRPUR_PLACES_DICT[key], name: name };
+  // Prefix match
+  var keys = Object.keys(MIRPUR_PLACES_DICT);
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i].indexOf(key) === 0) {
+      return { coords: MIRPUR_PLACES_DICT[keys[i]], name: keys[i] };
+    }
+  }
+  return null;
+}
+
+// ── Haversine ──
+function haversineKm(lat1, lng1, lat2, lng2) {
+  var R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+          Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+          Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ── Suggestions list built from MIRPUR_PLACES_DICT (authoritative) ──
+function getPlaceIcon(n) {
+  var nu = n.toUpperCase();
+  if (nu.includes('SECTOR'))                                              return '🏘️';
+  if (nu.includes('BAZAR') || nu.includes('MARKET') || nu.includes('PLAZA')) return '🛒';
+  if (nu.includes('HOSPITAL') || nu.includes('CMH') || nu.includes('MEDICAL')) return '🏥';
+  if (nu.includes('UNIVERSITY') || nu.includes('COLLEGE') || nu.includes('SCHOOL') || nu.includes('MUST') || nu.includes('CADET')) return '🎓';
+  if (nu.includes('AIRPORT'))                                             return '✈️';
+  if (nu.includes('DAM') || nu.includes('LAKE'))                         return '💧';
+  if (nu.includes('CANTT'))                                               return '🪖';
+  if (nu.includes('ROAD') || nu.includes('BYPASS') || nu.includes('CHOWK') || nu.includes('LINK ROAD')) return '🛣️';
+  if (nu.includes('NEW CITY') || nu.includes('CITY CENTER'))             return '🏙️';
+  if (nu.includes('PIZZA') || nu.includes('RESTAURANT') || nu.includes('TIKKA') || nu.includes('CAFÉ') || nu.includes('CAFE') || nu.includes('DHABA') || nu.includes('LASANIA') || nu.includes('NAAN') || nu.includes('KFC') || nu.includes('FOOD STREET')) return '🍽️';
+  if (nu.includes('HOTEL') || nu.includes('GUEST HOUSE'))                return '🏨';
+  if (nu.includes('BANK') || nu.includes('HBL') || nu.includes('MCB') || nu.includes('UBL') || nu.includes('MEEZAN')) return '🏦';
+  if (nu.includes('PETROL') || nu.includes('PSO') || nu.includes('SHELL') || nu.includes('TOTAL')) return '⛽';
+  if (nu.includes('POLICE') || nu.includes('JAIL'))                      return '🚓';
+  if (nu.includes('PARK') || nu.includes('ZOO') || nu.includes('SPORTS')) return '🌳';
+  if (nu.includes('MOSQUE') || nu.includes('MASJID') || nu.includes('EIDGAH')) return '🕌';
+  if (nu.includes('SALON') || nu.includes('PARLOUR') || nu.includes('BEAUTY')) return '💇';
+  return '📍';
+}
+
+// Build MIRPUR_PLACES as the suggestion list from the authoritative dict
+var MIRPUR_PLACES = Object.keys(MIRPUR_PLACES_DICT).map(function(k) {
+  // Use the key but title-case it for display
+  var displayName = k.replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
+  return { name: displayName, _key: k, icon: getPlaceIcon(k) };
+});
+
+// ── Map setup ──
+var mapCenter = [33.1480, 73.7508];
+var map = L.map('map').setView(mapCenter, 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19
+}).addTo(map);
+
+var pickupIcon = L.divIcon({
+  html: '<div style="background:#27ae60;width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4)"></div>',
+  iconSize: [20,20], iconAnchor: [10,10], className: ''
+});
+var destIcon = L.divIcon({
+  html: '<div style="background:#e74c3c;width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4)"></div>',
+  iconSize: [20,20], iconAnchor: [10,10], className: ''
+});
+var driverDotIcon = L.divIcon({
+  html: '<div style="background:#ff6b00;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>',
+  iconSize: [14,14], iconAnchor: [7,7], className: ''
+});
+var driverCarIcon = L.divIcon({
+  html: '<div style="background:#2980b9;width:22px;height:22px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px">🚗</div>',
+  iconSize: [22,22], iconAnchor: [11,11], className: ''
+});
+
+var pickupMarker  = null;
+var destMarker    = null;
+var routeLine     = null;   // passenger route line (orange)
+var driverToPickupLine = null; // blue: driver → pickup
+var driverMarker  = null;  // driver's car on map
+var driverMarkers = [];    // nearby driver dots
+
+// ── Map markers ──
+function setMapMarker(type, lat, lng, label) {
+  if (type === 'pickup') {
+    if (pickupMarker) map.removeLayer(pickupMarker);
+    pickupMarker = L.marker([lat, lng], { icon: pickupIcon })
+      .addTo(map)
+      .bindPopup('🟢 <strong>Pickup:</strong> ' + label);
+  } else {
+    if (destMarker) map.removeLayer(destMarker);
+    destMarker = L.marker([lat, lng], { icon: destIcon })
+      .addTo(map)
+      .bindPopup('🔴 <strong>Destination:</strong> ' + label);
+  }
+  if (pickupMarker && destMarker) {
+    var p1 = pickupMarker.getLatLng(), p2 = destMarker.getLatLng();
+    drawRealRoute(p1.lat, p1.lng, p2.lat, p2.lng);
+  } else {
+    map.setView([lat, lng], 15);
+  }
+}
+
+// ── OSRM route: pickup → destination ──
+function drawRealRoute(lat1, lng1, lat2, lng2) {
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  var url = 'https://router.project-osrm.org/route/v1/driving/' +
+    lng1 + ',' + lat1 + ';' + lng2 + ',' + lat2 +
+    '?overview=full&geometries=geojson';
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.routes || !data.routes[0]) { drawFallbackLine(lat1, lng1, lat2, lng2); return; }
+      routeLine = L.geoJSON(data.routes[0].geometry, {
+        style: { color: '#ff6b00', weight: 5, opacity: 0.85 }
+      }).addTo(map);
+      lastRoadKm      = (data.routes[0].distance || 0) / 1000;
+      lastDurationMin = Math.ceil((data.routes[0].duration || 0) / 60);
+      showFareBox(lastRoadKm, lastDurationMin);
+      map.fitBounds(routeLine.getBounds().pad(0.25));
+    })
+    .catch(function() { drawFallbackLine(lat1, lng1, lat2, lng2); });
+}
+
+function drawFallbackLine(lat1, lng1, lat2, lng2) {
+  if (routeLine) map.removeLayer(routeLine);
+  routeLine = L.polyline([[lat1, lng1],[lat2, lng2]], {
+    color: '#ff6b00', weight: 3, dashArray: '8 6', opacity: 0.7
+  }).addTo(map);
+  var km = haversineKm(lat1, lng1, lat2, lng2) * 1.2;
+  lastRoadKm      = km;
+  lastDurationMin = Math.ceil(km / 0.5);
+  showFareBox(km, lastDurationMin);
+  if (pickupMarker && destMarker) {
+    map.fitBounds(L.featureGroup([pickupMarker, destMarker]).getBounds().pad(0.3));
+  }
+}
+
+// ── After driver accepts: draw driver → pickup → destination ──
+function drawFullRideMap(driverLat, driverLng) {
+  if (!pickupMarker || !destMarker) return;
+  // Guard: reject invalid/default coordinates (0,0 area)
+  if (!driverLat || !driverLng || (Math.abs(driverLat) < 0.5 && Math.abs(driverLng) < 0.5)) return;
+  var p1 = pickupMarker.getLatLng();
+  var p2 = destMarker.getLatLng();
+
+  // Place driver marker
+  if (driverMarker) map.removeLayer(driverMarker);
+  driverMarker = L.marker([driverLat, driverLng], { icon: driverCarIcon })
+    .addTo(map)
+    .bindPopup('🚗 <strong>Your Driver</strong><br/>Heading to pickup')
+    .openPopup();
+
+  // Draw driver → pickup (blue road route)
+  var url1 = 'https://router.project-osrm.org/route/v1/driving/' +
+    driverLng + ',' + driverLat + ';' + p1.lng + ',' + p1.lat +
+    '?overview=full&geometries=geojson';
+
+  fetch(url1)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (driverToPickupLine) map.removeLayer(driverToPickupLine);
+      if (data.routes && data.routes[0]) {
+        driverToPickupLine = L.geoJSON(data.routes[0].geometry, {
+          style: { color: '#2980b9', weight: 4, opacity: 0.8 }
+        }).addTo(map);
+        var driverKm  = (data.routes[0].distance / 1000).toFixed(1);
+        var driverMin = Math.ceil(data.routes[0].duration / 60);
+        showToast('🗺️ Driver is ' + driverKm + ' km away (~' + driverMin + ' min to pickup)', '#2980b9');
+      } else {
+        // Fallback straight line
+        driverToPickupLine = L.polyline(
+          [[driverLat, driverLng], [p1.lat, p1.lng]],
+          { color: '#2980b9', weight: 3, dashArray: '6 4', opacity: 0.75 }
+        ).addTo(map);
+      }
+
+      // Fit map to show all three points
+      var allPoints = [[driverLat, driverLng], [p1.lat, p1.lng], [p2.lat, p2.lng]];
+      map.fitBounds(L.latLngBounds(allPoints).pad(0.25));
+    })
+    .catch(function() {
+      driverToPickupLine = L.polyline(
+        [[driverLat, driverLng], [p1.lat, p1.lng]],
+        { color: '#2980b9', weight: 3, dashArray: '6 4', opacity: 0.75 }
+      ).addTo(map);
+    });
+}
+
+// ── Show fare box ──
+function showFareBox(roadKm, durationMin) {
+  var p    = PRICING[selectedVehicle];
+  estimatedFare = Math.max(p.minFare, Math.round(roadKm * p.perKm));
+  document.getElementById('fare-dist').textContent  = roadKm.toFixed(1) + ' km (road distance)';
+  document.getElementById('fare-time').textContent  = durationMin + ' min (estimated)';
+  document.getElementById('fare-rate').textContent  = p.label + ' (min Rs ' + p.minFare + ')';
+  document.getElementById('fare-total').textContent = 'Rs ' + estimatedFare;
+  document.getElementById('fare-box').classList.add('show');
+
+  // Show negotiate box with limits
+  var minOffer = Math.round(estimatedFare * 0.90);
+  document.getElementById('offer-input').value = '';
+  document.getElementById('offer-input').min   = minOffer;
+  document.getElementById('offer-input').max   = estimatedFare;
+  document.getElementById('offer-limits').textContent =
+    'Minimum offer: Rs ' + minOffer + ' (10% discount max)';
+  document.getElementById('negotiate-box').classList.add('show');
+  document.getElementById('negotiate-status').style.display = 'none';
+  document.getElementById('offer-rejected-banner').style.display = 'none';
+}
+
+// ── Update fare total when passenger changes counter-offer input ──
+function onOfferInput(input) {
+  var val = parseFloat(input.value);
+  var minOffer = Math.round(estimatedFare * 0.90);
+  var statusEl = document.getElementById('negotiate-status');
+  if (!isNaN(val) && val >= minOffer && val < estimatedFare) {
+    document.getElementById('fare-total').textContent = 'Rs ' + val + ' (your offer)';
+    statusEl.textContent = '✅ Offer of Rs ' + val + ' will be sent with your request.';
+    statusEl.style.color = '#27ae60';
+    statusEl.style.display = 'block';
+  } else if (!isNaN(val) && val >= estimatedFare) {
+    document.getElementById('fare-total').textContent = 'Rs ' + estimatedFare;
+    statusEl.textContent = 'Offer must be less than estimate (Rs ' + estimatedFare + ').';
+    statusEl.style.color = '#e74c3c';
+    statusEl.style.display = 'block';
+  } else if (!isNaN(val) && val < minOffer && val > 0) {
+    document.getElementById('fare-total').textContent = 'Rs ' + estimatedFare;
+    statusEl.textContent = 'Minimum offer is Rs ' + minOffer + ' (10% max discount).';
+    statusEl.style.color = '#e74c3c';
+    statusEl.style.display = 'block';
+  } else {
+    // Empty or invalid — show original estimate
+    document.getElementById('fare-total').textContent = 'Rs ' + estimatedFare;
+    statusEl.style.display = 'none';
+  }
+}
+
+// ── Suggestions — local filter with exact + prefix + substring matching ──
+function getLocalSuggestions(q) {
+  if (!q || q.length < 1) return MIRPUR_PLACES.slice(0, 6);
+  var ql = q.toLowerCase().trim();
+  var exact = [], prefix = [], substr = [];
+  MIRPUR_PLACES.forEach(function(p) {
+    var kl = p._key || p.name.toLowerCase();
+    if (kl === ql) {
+      exact.push(p);
+    } else if (kl.indexOf(ql) === 0) {
+      prefix.push(p);
+    } else if (kl.indexOf(ql) > 0) {
+      substr.push(p);
+    }
+  });
+  // Return exact first, then prefix matches, then substring — up to 8 total
+  return exact.concat(prefix).concat(substr).slice(0, 8);
+}
+
+// ── Nominatim live search with debounce ──
+var nominatimTimers = {};
+var nominatimCache  = {};
+
+function onLocInput(input, type) {
+  var q = input.value.trim();
+  var localMatches = getLocalSuggestions(q);
+  // Always show local matches immediately
+  showSuggestions(type, localMatches, []);
+  // Skip Nominatim if we have a strong local match or query is too short
+  clearTimeout(nominatimTimers[type]);
+  if (q.length < 3) return;
+  // If exact match found in local dict, don't bother calling Nominatim
+  if (MIRPUR_PLACES_DICT[q.toLowerCase().trim()]) return;
+  nominatimTimers[type] = setTimeout(function() {
+    fetchNominatim(q, type);
+  }, 320);
+}
+
+function fetchNominatim(q, type) {
+  var cacheKey = q.toLowerCase();
+  if (nominatimCache[cacheKey]) {
+    mergeAndShow(type, q, nominatimCache[cacheKey]);
+    return;
+  }
+  var url = 'https://nominatim.openstreetmap.org/search?' +
+    'q=' + encodeURIComponent(q + ' Mirpur AJK Pakistan') +
+    '&format=json' +
+    '&viewbox=73.3,33.6,74.1,32.8' +
+    '&bounded=0' +
+    '&limit=6' +
+    '&countrycodes=pk' +
+    '&accept-language=en';
+
+  fetch(url, { headers: { 'User-Agent': 'RidePK/1.0 (ridepk-ajk)' } })
+    .then(function(r) { return r.json(); })
+    .then(function(results) {
+      nominatimCache[cacheKey] = results;
+      mergeAndShow(type, q, results);
+    })
+    .catch(function() { /* network error — just keep local results */ });
+}
+
+function mergeAndShow(type, q, nominatimResults) {
+  var currentQ = document.getElementById(type === 'pickup' ? 'pickup-input' : 'dest-input').value.trim();
+  if (currentQ !== q) return; // user typed something else — stale result
+
+  var localItems = getLocalSuggestions(q);
+
+  // Build Nominatim items, skip duplicates already in local
+  var localNames = localItems.map(function(l) { return l.name.toLowerCase(); });
+  var apiItems = [];
+  nominatimResults.forEach(function(r) {
+    var displayName = formatNominatimName(r.display_name);
+    if (localNames.indexOf(displayName.toLowerCase()) < 0) {
+      apiItems.push({
+        name: displayName,
+        icon: getNominatimIcon(r.type, r.class),
+        lat:  parseFloat(r.lat),
+        lng:  parseFloat(r.lon),
+        fromApi: true
+      });
+    }
+  });
+
+  showSuggestions(type, localItems, apiItems.slice(0, 4));
+}
+
+function formatNominatimName(displayName) {
+  // Shorten: take first two comma-separated parts
+  var parts = displayName.split(',');
+  if (parts.length <= 2) return displayName;
+  // Keep first part + city part (usually part 2 or 3)
+  return (parts[0].trim() + ', ' + parts[1].trim()).substring(0, 60);
+}
+
+function getNominatimIcon(type, cls) {
+  if (cls === 'amenity') {
+    if (type === 'hospital' || type === 'clinic') return '🏥';
+    if (type === 'school' || type === 'university') return '🎓';
+    if (type === 'restaurant' || type === 'fast_food' || type === 'cafe') return '🍽️';
+    if (type === 'bank' || type === 'atm') return '🏦';
+    if (type === 'fuel') return '⛽';
+    if (type === 'place_of_worship') return '🕌';
+    if (type === 'police') return '🚓';
+    if (type === 'pharmacy') return '💊';
+    if (type === 'hotel' || type === 'guest_house') return '🏨';
+    return '📌';
+  }
+  if (cls === 'place') return '📍';
+  if (cls === 'highway') return '🛣️';
+  if (cls === 'leisure') return '🌳';
+  if (cls === 'tourism') return '🏛️';
+  return '📌';
+}
+
+function onLocFocus(type) {
+  clearTimeout(blurTimer[type]);
+  var id = type === 'pickup' ? 'pickup-input' : 'dest-input';
+  var q  = document.getElementById(id).value.trim();
+  showSuggestions(type, getLocalSuggestions(q), []);
+}
+function onLocBlur(type) {
+  blurTimer[type] = setTimeout(function() {
+    document.getElementById(type + '-suggestions').style.display = 'none';
+  }, 250);
+}
+function onLocKeydown(e, type) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  // Click the first visible suggestion item
+  var c = document.getElementById(type + '-suggestions');
+  var first = c.querySelector('.suggestion-item');
+  if (first) { first.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); }
+}
+
+function showSuggestions(type, localItems, apiItems) {
+  var c = document.getElementById(type + '-suggestions');
+  var all = [];
+
+  localItems.forEach(function(p) {
+    all.push({ name: p.name, icon: p.icon, fromApi: false });
+  });
+  if (apiItems && apiItems.length) {
+    if (localItems.length > 0) {
+      all.push({ divider: true, label: '🌐 More results' });
+    }
+    apiItems.forEach(function(p) { all.push(p); });
+  }
+
+  if (!all.length || (all.length === 1 && all[0].divider)) {
+    c.style.display = 'none'; return;
+  }
+
+  c.innerHTML = all.map(function(p) {
+    if (p.divider) {
+      return '<div style="padding:5px 14px;font-size:0.75rem;color:#aaa;background:#f9f9f9;border-bottom:1px solid #eee">' + p.label + '</div>';
+    }
+    var safeName = p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    // For local places, prefer MIRPUR_PLACES_DICT (accurate coords) over Nominatim
+    var dictKey = p._key || p.name.toLowerCase();
+    var resolvedCoords = MIRPUR_PLACES_DICT[dictKey] || coordsByName[p.name] || coordsByName[p.name.toLowerCase()] || {};
+    var lat = (p.fromApi && p.lat != null) ? p.lat : (resolvedCoords.lat != null ? resolvedCoords.lat : '');
+    var lng = (p.fromApi && p.lng != null) ? p.lng : (resolvedCoords.lng != null ? resolvedCoords.lng : '');
+    var coordArgs = (lat !== '' && lng !== '') ? (',' + lat + ',' + lng) : '';
+    return '<div class="suggestion-item" onmousedown="selectSuggestion(\'' + type + '\',\'' + safeName + '\'' + coordArgs + ')">' +
+      '<span class="sug-icon">' + (p.icon || '📍') + '</span>' +
+      '<span>' + p.name + '</span></div>';
+  }).join('');
+  c.style.display = 'block';
+}
+
+function selectSuggestion(type, name, lat, lng) {
+  var id = type === 'pickup' ? 'pickup-input' : 'dest-input';
+  document.getElementById(id).value = name;
+  document.getElementById(type + '-suggestions').style.display = 'none';
+
+  var finalLat = (lat != null && lat !== '') ? parseFloat(lat) : null;
+  var finalLng = (lng != null && lng !== '') ? parseFloat(lng) : null;
+
+  // Use passed coords (from Nominatim or pre-resolved local)
+  if (finalLat && finalLng) {
+    coordsByName[name] = { lat: finalLat, lng: finalLng };
+    setMapMarker(type, finalLat, finalLng, name);
+    return;
+  }
+  // Final fallback: lookup table
+  var coords = coordsByName[name];
+  if (coords) {
+    setMapMarker(type, coords.lat, coords.lng, name);
+  }
+}
+
+// ── Vehicle selection ──
+function pickVehicle(type) {
+  selectedVehicle = type;
+  document.querySelectorAll('.vtype-card').forEach(function(c) { c.classList.remove('sel'); });
+  document.getElementById('vt-' + type).classList.add('sel');
+  if (lastRoadKm > 0) showFareBox(lastRoadKm, lastDurationMin);
+}
+
+// ── Detect location ──
+function detectLocation() {
+  var status = document.getElementById('detect-status');
+  status.style.color = '#666'; status.textContent = '🔄 Detecting location...'; status.style.display = 'block';
+  if (!navigator.geolocation) {
+    status.textContent = '❌ Geolocation not supported.';
+    selectSuggestion('pickup', 'Mirpur City Center'); return;
+  }
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    userLat = pos.coords.latitude;
+    userLng = pos.coords.longitude;
+    var inMirpur = (userLat > 32.8 && userLat < 33.5 && userLng > 73.3 && userLng < 74.1);
+    if (inMirpur) {
+      var bestName = null, bestDist = Infinity;
+      LANDMARK_COORDS.forEach(function(lm) {
+        var d = haversineKm(userLat, userLng, lm.lat, lm.lng);
+        if (d < bestDist) { bestDist = d; bestName = lm.name; }
+      });
+      if (bestDist <= 2) {
+        document.getElementById('pickup-input').value = bestName;
+        status.textContent = '✅ Location detected — ' + bestName;
+        status.style.color = '#27ae60';
+        var c = coordsByName[bestName];
+        setMapMarker('pickup', c.lat, c.lng, bestName);
+      } else {
+        document.getElementById('pickup-input').value = 'Mirpur, AJK';
+        status.textContent = '✅ Your location detected in Mirpur, AJK';
+        status.style.color = '#27ae60';
+        setMapMarker('pickup', userLat, userLng, 'My Location');
+        coordsByName['Mirpur, AJK'] = { lat: userLat, lng: userLng };
+      }
+    } else {
+      document.getElementById('pickup-input').value = 'Mirpur City Center';
+      status.textContent = '📍 GPS returned wrong area — set to Mirpur, AJK';
+      status.style.color = '#f39c12';
+      var center = coordsByName['Mirpur City Center'];
+      setMapMarker('pickup', center.lat, center.lng, 'Mirpur City Center');
+    }
+  }, function() {
+    document.getElementById('pickup-input').value = 'Mirpur City Center';
+    document.getElementById('detect-status').textContent = '📍 Could not get GPS. Set to Mirpur City Center';
+    document.getElementById('detect-status').style.color = '#f39c12';
+    var center = coordsByName['Mirpur City Center'];
+    setMapMarker('pickup', center.lat, center.lng, 'Mirpur City Center');
+  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
+}
+
+// ── Load nearby drivers ──
+function loadNearbyDrivers() {
+  var refLat = userLat || 33.1480;
+  var refLng = userLng || 73.7508;
+  if (pickupMarker) { var ll = pickupMarker.getLatLng(); refLat = ll.lat; refLng = ll.lng; }
+  fetch(API + '/api/drivers/nearby?lat=' + refLat + '&lng=' + refLng + '&radius=10')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      driverMarkers.forEach(function(m) { map.removeLayer(m); });
+      driverMarkers = [];
+      if (data.drivers && data.drivers.length > 0) {
+        data.drivers.forEach(function(d) {
+          if (d.location && d.location.coordinates && d.location.coordinates.length === 2) {
+            var lng = d.location.coordinates[0], lat = d.location.coordinates[1];
+            var vType = (d.vehicle && d.vehicle.type) || 'car';
+            var emoji = vType === 'motorbike' || vType === 'bike' ? '🏍️' : vType === 'rickshaw' ? '🛺' : '🚗';
+            var m = L.marker([lat, lng], { icon: driverDotIcon }).addTo(map)
+              .bindPopup(emoji + ' ' + (d.fullName || 'Driver') + '<br/>⭐ ' + ((d.rating && d.rating.average) || 5.0).toFixed(1));
+            driverMarkers.push(m);
+          }
+        });
+        showToast('🚗 ' + data.drivers.length + ' driver(s) online nearby', '#27ae60');
+      } else {
+        showToast('😔 No drivers online nearby right now. Try again in a moment.', '#f39c12');
+      }
+    })
+    .catch(function() {
+      showToast('⚠️ Could not load nearby drivers. Is the server running?', '#e74c3c');
+    });
+}
+
+// ── Book ride ──
+function bookRide() {
+  var pickup = document.getElementById('pickup-input').value.trim();
+  var dest   = document.getElementById('dest-input').value.trim();
+  if (!pickup)        { showToast('Please enter your pickup location.', '#e74c3c'); return; }
+  if (!dest)          { showToast('Please enter your destination.', '#e74c3c'); return; }
+  if (!pickupMarker)  { showToast('Please select a pickup location from the list.', '#e74c3c'); return; }
+  if (!destMarker)    { showToast('Please select a destination from the list.', '#e74c3c'); return; }
+
+  var token = localStorage.getItem('token');
+  if (!token) {
+    showToast('⚠️ Please log in to book a ride.', '#e74c3c');
+    setTimeout(function() { window.location.href = 'login.html'; }, 1500);
+    return;
+  }
+
+  loadNearbyDrivers();
+
+  var p1   = pickupMarker.getLatLng();
+  var p2   = destMarker.getLatLng();
+  var fare = Math.max(PRICING[selectedVehicle].minFare, Math.round(lastRoadKm * PRICING[selectedVehicle].perKm));
+
+  // Include counter-offer if passenger entered one
+  var offerInputVal = parseFloat(document.getElementById('offer-input').value);
+  var minOffer = Math.round(fare * 0.90);
+  var counterOfferAmt = null;
+  if (!isNaN(offerInputVal) && offerInputVal >= minOffer && offerInputVal < fare) {
+    counterOfferAmt = offerInputVal;
+  }
+
+  var body = {
+    pickupAddress: pickup,  pickupLat: p1.lat,  pickupLng: p1.lng,
+    destAddress:   dest,    destLat:   p2.lat,   destLng:   p2.lng,
+    vehicleType:   selectedVehicle,
+    estimatedFare: fare,
+    distanceKm:    lastRoadKm,
+    durationMin:   lastDurationMin,
+    counterOffer:  counterOfferAmt || undefined,
+    // Send name/phone so even if JWT lookup fails, the ride has a real name
+    passengerName:  loggedInName  || undefined,
+    passengerPhone: loggedInPhone || undefined
+  };
+
+  document.getElementById('btn-book').disabled    = true;
+  document.getElementById('btn-book').textContent = 'Sending request...';
+
+  fetch(API + '/api/rides/request', {
+    method:  'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success && data.rideId) {
+      currentRideId = data.rideId;
+      document.getElementById('waiting-card').classList.add('show');
+      document.getElementById('btn-book').style.display = 'none';
+      document.getElementById('negotiate-box').classList.remove('show'); // hide during wait
+      var fareMsg = counterOfferAmt
+        ? 'Offered fare: Rs ' + counterOfferAmt + ' (counter-offer). Waiting for driver acceptance...'
+        : 'Request sent for a ' + selectedVehicle + ' at Rs ' + fare + '. Waiting for driver acceptance...';
+      document.getElementById('waiting-text').textContent = fareMsg;
+      showToast('✅ Ride request sent! Waiting for a driver.', '#27ae60');
+      startPollingRideStatus();
+    } else {
+      showToast('❌ ' + (data.message || 'Could not send request.'), '#e74c3c');
+      document.getElementById('btn-book').disabled    = false;
+      document.getElementById('btn-book').textContent = '🚗 Find a Driver';
+    }
+  })
+  .catch(function() {
+    showToast('❌ Cannot connect to server. Is the server running?', '#e74c3c');
+    document.getElementById('btn-book').disabled    = false;
+    document.getElementById('btn-book').textContent = '🚗 Find a Driver';
+  });
+}
+
+// ── Poll ride status ──
+function startPollingRideStatus() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(function() {
+    if (!currentRideId) { clearInterval(pollInterval); return; }
+    fetch(API + '/api/rides/' + currentRideId + '/status')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.ride) return;
+
+        if (data.status === 'accepted' && data.ride.driver) {
+          clearInterval(pollInterval);
+          showDriverFound(data.ride);
+          // After showing driver, continue polling for location updates and completion
+          startActiveRidePolling();
+        } else if (data.status === 'cancelled') {
+          clearInterval(pollInterval);
+          var reason = data.ride.cancelReason ? ' Reason: ' + data.ride.cancelReason : '';
+          var by     = data.ride.cancelledBy === 'driver' ? 'Driver cancelled.' : 'Ride was cancelled.';
+          showToast(by + reason, '#e74c3c');
+          resetBookingUI();
+        } else if (data.ride.counterOfferStatus === 'rejected') {
+          // Driver rejected the counter-offer — show banner
+          document.getElementById('offer-rejected-banner').style.display = 'block';
+          var statusEl = document.getElementById('negotiate-status');
+          statusEl.textContent = 'Driver declined your offer. Fare remains Rs ' + estimatedFare + '.';
+          statusEl.style.color = '#e74c3c';
+          statusEl.style.display = 'block';
+        }
+      })
+      .catch(function() { /* keep polling */ });
+  }, 5000);
+}
+
+// ── Poll during active ride for driver location updates and completion ──
+var activeRidePollInterval = null;
+function startActiveRidePolling() {
+  if (activeRidePollInterval) clearInterval(activeRidePollInterval);
+  activeRidePollInterval = setInterval(function() {
+    if (!currentRideId) { clearInterval(activeRidePollInterval); return; }
+    fetch(API + '/api/rides/' + currentRideId + '/status')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.ride) return;
+        // Update driver marker on map if we have valid coords
+        var d = data.ride.driver;
+        if (d && d.location && d.location.coordinates && d.location.coordinates.length === 2) {
+          var dLng = d.location.coordinates[0];
+          var dLat = d.location.coordinates[1];
+          if (Math.abs(dLat) > 0.5 || Math.abs(dLng) > 0.5) {
+            if (driverMarker) {
+              driverMarker.setLatLng([dLat, dLng]);
+            } else {
+              drawFullRideMap(dLat, dLng);
+            }
+          }
+        }
+        // Detect ride completion
+        if (data.status === 'completed') {
+          clearInterval(activeRidePollInterval);
+          stopChatPolling();
+          showToast('✅ Ride completed! Thank you for using RidePK.', '#27ae60');
+          setTimeout(function() { resetBookingUI(); }, 5000);
+        } else if (data.status === 'cancelled') {
+          clearInterval(activeRidePollInterval);
+          stopChatPolling();
+          showToast('❌ Ride was cancelled.', '#e74c3c');
+          setTimeout(function() { resetBookingUI(); }, 3000);
+        }
+      })
+      .catch(function() {});
+  }, 8000); // every 8 seconds
+}
+
+// ── Show driver info after acceptance ──
+function showDriverFound(ride) {
+  var driver = ride.driver;
+  document.getElementById('waiting-card').classList.remove('show');
+  var card = document.getElementById('driver-found-card');
+  var v    = driver.vehicle || {};
+  document.getElementById('di-name').textContent    = driver.fullName || '—';
+  document.getElementById('di-vehicle').textContent = (v.make || '') + ' ' + (v.model || '') + ' (' + (v.color || '') + ')';
+  document.getElementById('di-plate').textContent   = v.plate || '—';
+  document.getElementById('di-rating').textContent  = '⭐ ' + ((driver.rating && driver.rating.average) || 5.0).toFixed(1);
+  var phone = driver.phone || '';
+  document.getElementById('di-phone-btn').href = 'tel:' + phone;
+  document.getElementById('di-phone-btn').textContent = '📞 Call Driver: ' + phone;
+
+  // Show agreed fare if there was a counter-offer
+  var agreedFare = ride.finalPrice || ride.offeredFare || ride.estimatedFare;
+  if (agreedFare && agreedFare !== ride.estimatedFare) {
+    document.getElementById('di-fare').textContent = 'Rs ' + agreedFare + ' (counter-offer accepted ✅)';
+    document.getElementById('agreed-fare-row').style.display = 'flex';
+  } else if (agreedFare) {
+    document.getElementById('di-fare').textContent = 'Rs ' + agreedFare;
+    document.getElementById('agreed-fare-row').style.display = 'flex';
+  }
+
+  card.classList.add('show');
+  showToast('🎉 Driver accepted your ride! They are on the way.', '#27ae60');
+
+  // Draw full route on map: driver → pickup → destination
+  // Only draw if driver has a real GPS location (not 0,0 default)
+  if (driver.location && driver.location.coordinates && driver.location.coordinates.length === 2) {
+    var dLng = driver.location.coordinates[0];
+    var dLat = driver.location.coordinates[1];
+    var isValidCoords = (Math.abs(dLat) > 0.5 || Math.abs(dLng) > 0.5); // reject 0,0 and near-zero
+    if (isValidCoords) {
+      drawFullRideMap(dLat, dLng);
+    }
+    // else: driver hasn't sent GPS yet — map stays on pickup/destination view
+  }
+
+  // Show chat panel and start chat polling
+  document.getElementById('chat-panel').classList.add('show');
+  document.getElementById('chat-messages').innerHTML = '';
+  isChatOpen = true;
+  lastMessageTime = new Date().toISOString();
+  startChatPolling();
+}
+
+// ── Cancel ride modal ──
+function openCancelModal() {
+  selectedCancelReason = '';
+  document.getElementById('cancel-custom-reason').value = '';
+  document.querySelectorAll('.reason-btn').forEach(function(b) { b.classList.remove('sel'); });
+  document.getElementById('cancel-modal').classList.add('show');
+}
+function closeCancelModal() {
+  document.getElementById('cancel-modal').classList.remove('show');
+}
+function selectReason(btn, reason) {
+  document.querySelectorAll('.reason-btn').forEach(function(b) { b.classList.remove('sel'); });
+  btn.classList.add('sel');
+  selectedCancelReason = reason;
+  document.getElementById('cancel-custom-reason').value = '';
+}
+function confirmCancelRide() {
+  var customReason = document.getElementById('cancel-custom-reason').value.trim();
+  var reason = customReason || selectedCancelReason;
+  if (!reason) {
+    showToast('Please select or type a cancellation reason.', '#e74c3c');
+    return;
+  }
+  closeCancelModal();
+  doCancelRide(reason);
+}
+function doCancelRide(reason) {
+  if (!currentRideId) return;
+  fetch(API + '/api/rides/' + currentRideId + '/cancel', {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ reason: reason, cancelledBy: 'passenger' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() {
+    clearInterval(pollInterval);
+    stopChatPolling();
+    if (activeRidePollInterval) { clearInterval(activeRidePollInterval); activeRidePollInterval = null; }
+    showToast('Ride cancelled: ' + reason, '#666');
+    resetBookingUI();
+  })
+  .catch(function() {
+    showToast('Could not cancel. Please try again.', '#e74c3c');
+  });
+}
+
+// ── Reset UI ──
+function resetBookingUI() {
+  currentRideId    = null;
+  isChatOpen       = false;
+  lastMessageTime  = null;
+  stopChatPolling();
+  if (activeRidePollInterval) { clearInterval(activeRidePollInterval); activeRidePollInterval = null; }
+
+  // Clear map overlays
+  if (driverMarker)      { map.removeLayer(driverMarker);      driverMarker = null; }
+  if (driverToPickupLine){ map.removeLayer(driverToPickupLine); driverToPickupLine = null; }
+
+  document.getElementById('waiting-card').classList.remove('show');
+  document.getElementById('driver-found-card').classList.remove('show');
+  document.getElementById('chat-panel').classList.remove('show');
+  document.getElementById('agreed-fare-row').style.display = 'none';
+  document.getElementById('btn-book').style.display = '';
+  document.getElementById('btn-book').disabled    = false;
+  document.getElementById('btn-book').textContent = '🚗 Find a Driver';
+
+  // Re-show negotiate box if fare is set
+  if (lastRoadKm > 0) {
+    document.getElementById('negotiate-box').classList.add('show');
+  }
+}
+
+// ── Chat ──
+function startChatPolling() {
+  stopChatPolling();
+  chatPollInterval = setInterval(pollChatMessages, 4000);
+}
+function stopChatPolling() {
+  if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+}
+
+function pollChatMessages() {
+  if (!currentRideId || !isChatOpen) return;
+  var token = localStorage.getItem('token');
+  if (!token) return;
+  var url = API + '/api/rides/' + currentRideId + '/messages';
+  if (lastMessageTime) url += '?since=' + encodeURIComponent(lastMessageTime);
+
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.messages && data.messages.length > 0) {
+        data.messages.forEach(function(m) {
+          // Show driver messages as "them"; passenger's own already shown optimistically
+          if (m.senderType === 'driver') {
+            appendChatBubble(m, false);
+          }
+        });
+        lastMessageTime = data.messages[data.messages.length - 1].sentAt;
+      }
+      // Auto-reset chat if ride completed or cancelled
+      if (data.rideStatus === 'completed' || data.rideStatus === 'cancelled') {
+        stopChatPolling();
+      }
+    })
+    .catch(function() {});
+}
+
+function sendChatMessage() {
+  var input = document.getElementById('chat-input');
+  var text  = input.value.trim();
+  if (!text || !currentRideId) return;
+
+  var token = localStorage.getItem('token');
+  if (!token) { showToast('Please log in.', '#e74c3c'); return; }
+
+  input.value = '';
+
+  // Optimistically show message immediately
+  appendChatBubble({ senderType: 'passenger', text: text, sentAt: new Date().toISOString() }, true);
+
+  fetch(API + '/api/rides/' + currentRideId + '/messages', {
+    method:  'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ text: text, senderType: 'passenger' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success && data.message) {
+      lastMessageTime = data.message.sentAt;
+    }
+  })
+  .catch(function() {});
+}
+
+function appendChatBubble(msg, isMine) {
+  var wrap = document.getElementById('chat-messages');
+
+  // Remove empty placeholder
+  var placeholder = wrap.querySelector('div[style*="margin:auto"]');
+  if (placeholder) placeholder.remove();
+
+  var bubble = document.createElement('div');
+  bubble.className = 'chat-bubble ' + (isMine ? 'me' : 'them');
+  var time = new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  var label = isMine ? '' : '<strong>' + (msg.senderType === 'driver' ? 'Driver' : msg.senderName || 'Driver') + ': </strong>';
+  bubble.innerHTML = label + msg.text + '<div class="bubble-time">' + time + '</div>';
+  wrap.appendChild(bubble);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+// ── Toast ──
+function showToast(msg, color) {
+  var t = document.getElementById('toast');
+  t.innerHTML = msg;
+  t.style.borderLeftColor = color || '#ff6b00';
+  t.style.display = 'block';
+  setTimeout(function() { t.style.display = 'none'; }, 5000);
+}
+
+// ── Logged-in passenger profile (name + phone for ride requests) ──
+var loggedInName  = '';
+var loggedInPhone = '';
+
+function loadPassengerProfile() {
+  var token = localStorage.getItem('token');
+  if (!token) return;
+  fetch((window.RIDEPK_API_BASE || 'http://localhost:5000') + '/api/users/profile', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(data) {
+    if (!data) return;
+    var u = data.user || data;
+    loggedInName  = u.name  || u.fullName  || '';
+    loggedInPhone = u.phone || '';
+  })
+  .catch(function() {});
+}
+
+// ── Auto-detect on load ──
+window.addEventListener('load', function() {
+  loadPassengerProfile();
+  setTimeout(detectLocation, 600);
+});
+</script>
+</body>
+</html>

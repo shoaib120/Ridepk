@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Dashboard — RidePK</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body class="dash-page">
+
+  <nav class="navbar scrolled">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">🚗 Ride<span>PK</span></a>
+      <div class="nav-user">
+        <span id="user-name">Loading...</span>
+        <button class="btn-nav-outline" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="dash-wrap">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-user">
+        <div class="user-avatar">🧍</div>
+        <div>
+          <div class="uname" id="sidebar-name">—</div>
+          <div class="urole">Passenger</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="snav-item active" onclick="showSection('overview',this)">🏠 Overview</a>
+        <a href="booking.html" class="snav-item">🚗 Book a Ride</a>
+        <a href="#" class="snav-item" onclick="showSection('history',this)">📋 Ride History</a>
+        <a href="#" class="snav-item" onclick="showSection('active',this)">📍 Active Ride</a>
+        <a href="#" class="snav-item" onclick="showSection('profile',this)">👤 Profile</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="dash-main">
+
+      <!-- OVERVIEW -->
+      <div class="dsection" id="sec-overview">
+        <div class="dsec-title">
+          <h2>Welcome back, <span id="greeting-name">—</span> 👋</h2>
+          <p>Where are you going today?</p>
+        </div>
+
+        <div class="quick-book">
+          <a href="booking.html" class="qbook-btn">🚗 Book a Ride Now →</a>
+        </div>
+
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="sc-icon">🛣️</div>
+            <div class="sc-val" id="stat-total">0</div>
+            <div class="sc-label">Total Rides</div>
+          </div>
+          <div class="stat-card">
+            <div class="sc-icon">⭐</div>
+            <div class="sc-val" id="stat-rating">5.0</div>
+            <div class="sc-label">Your Rating</div>
+          </div>
+          <div class="stat-card">
+            <div class="sc-icon">💰</div>
+            <div class="sc-val" id="stat-spent">Rs. 0</div>
+            <div class="sc-label">Total Spent</div>
+          </div>
+        </div>
+
+        <div class="recent-rides">
+          <h3>Recent Rides</h3>
+          <div id="overview-rides">
+            <div class="loading-text">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIDE HISTORY -->
+      <div class="dsection hidden" id="sec-history">
+        <div class="dsec-title">
+          <h2>Ride History</h2>
+          <p>All your past trips</p>
+        </div>
+        <div id="history-list">
+          <div class="loading-text">Loading...</div>
+        </div>
+      </div>
+
+      <!-- ACTIVE RIDE -->
+      <div class="dsection hidden" id="sec-active">
+        <div class="dsec-title">
+          <h2>Active Ride</h2>
+          <p>Track your current trip in real time</p>
+        </div>
+        <div id="active-ride-content">
+          <div class="no-ride-box">
+            <div style="font-size:3rem">🚗</div>
+            <p>No active ride right now.</p>
+            <a href="booking.html" class="btn-primary" style="display:inline-block;margin-top:12px">Book a Ride</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROFILE -->
+      <div class="dsection hidden" id="sec-profile">
+        <div class="dsec-title">
+          <h2>My Profile</h2>
+          <p>Update your account details</p>
+        </div>
+        <div class="profile-form">
+          <div class="fgroup">
+            <label>Full Name</label>
+            <input type="text" id="p-name" placeholder="Your name" />
+          </div>
+          <div class="fgroup">
+            <label>Phone Number</label>
+            <input type="tel" id="p-phone" disabled style="opacity:0.5" />
+          </div>
+          <div class="fgroup">
+            <label>Email</label>
+            <input type="email" id="p-email" placeholder="your@email.com" />
+          </div>
+          <button class="btn-confirm" style="max-width:200px" onclick="updateProfile()">Save Changes</button>
+          <div id="profile-msg" style="margin-top:10px;font-size:0.85rem;color:#22c55e"></div>
+
+          <div class="divider"></div>
+          <h3 style="margin-bottom:14px">Change Password</h3>
+          <div class="fgroup">
+            <label>Current Password</label>
+            <input type="password" id="old-pw" placeholder="Current password" />
+          </div>
+          <div class="fgroup">
+            <label>New Password</label>
+            <input type="password" id="new-pw" placeholder="New password (min 6 chars)" />
+          </div>
+          <button class="btn-confirm" style="max-width:200px" onclick="changePassword()">Change Password</button>
+          <div id="pw-msg" style="margin-top:10px;font-size:0.85rem;color:#22c55e"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+    <script>
+    // Dynamically load socket.io from backend
+    (function(){
+      var s=document.createElement('script');
+      s.src=(window.RIDEPK_API_BASE||'http://localhost:5000')+'/socket.io/socket.io.js';
+      document.head.appendChild(s);
+    })();
+  </script>
+  <script src="js/api.js"></script>
+  <script src="js/socket-client.js"></script>
+  <script>
+    // ===== AUTH CHECK =====
+    const token = localStorage.getItem('token');
+    const role  = localStorage.getItem('role');
+    if (!token || role !== 'passenger') {
+      window.location.href = 'login.html';
+    }
+
+    // ===== LOAD USER INFO =====
+    async function loadUser() {
+      const data = await API.get('/api/auth/me');
+      if (data.user) {
+        const name = data.user.name || 'User';
+        document.getElementById('user-name').textContent    = name;
+        document.getElementById('sidebar-name').textContent = name;
+        document.getElementById('greeting-name').textContent = name.split(' ')[0];
+        document.getElementById('p-name').value  = name;
+        document.getElementById('p-phone').value = data.user.phone || '';
+        document.getElementById('p-email').value = data.user.email || '';
+        document.getElementById('stat-rating').textContent = data.user.rating?.average || '5.0';
+      }
+    }
+
+    // ===== LOAD RIDE HISTORY =====
+    async function loadRides() {
+      const data = await API.get('/api/rides/my');
+      const rides = data.rides || [];
+
+      // Stats
+      const totalSpent = rides.filter(r => r.status === 'completed')
+        .reduce((s, r) => s + (r.finalPrice || 0), 0);
+      document.getElementById('stat-total').textContent = rides.filter(r => r.status === 'completed').length;
+      document.getElementById('stat-spent').textContent = 'Rs. ' + totalSpent;
+
+      // Overview (last 3)
+      renderRideList(rides.slice(0, 3), 'overview-rides');
+
+      // Full history
+      renderRideList(rides, 'history-list');
+
+      // Active ride — also check recently completed rides (last 15 min) to show thank-you screen
+      const active = rides.find(r => ['searching','accepted','driver_arrived','in_progress','completed'].includes(r.status));
+      if (active) {
+        // For completed rides, only show thank-you if completed in the last 15 minutes
+        if (active.status === 'completed') {
+          const completedAt = active.completedAt ? new Date(active.completedAt) : new Date(active.updatedAt || active.createdAt);
+          const minsAgo = (Date.now() - completedAt.getTime()) / 60000;
+          if (minsAgo <= 15) renderActiveRide(active);
+        } else {
+          renderActiveRide(active);
+        }
+      }
+    }
+
+    function renderRideList(rides, containerId) {
+      const el = document.getElementById(containerId);
+      if (!rides.length) {
+        el.innerHTML = '<div class="empty-msg">No rides yet. <a href="booking.html" class="link">Book your first ride →</a></div>';
+        return;
+      }
+      el.innerHTML = rides.map(r => `
+        <div class="ride-card">
+          <div class="rc-route">
+            <span class="rc-from">📍 ${r.pickup?.address || '—'}</span>
+            <span class="rc-arrow">→</span>
+            <span class="rc-to">🏁 ${r.destination?.address || '—'}</span>
+          </div>
+          <div class="rc-meta">
+            <span class="rc-date">${new Date(r.createdAt).toLocaleDateString('en-PK', {day:'numeric',month:'short',year:'numeric'})}</span>
+            <span class="rc-dist">${r.distanceKm} km</span>
+            <span class="rc-price">Rs. ${r.finalPrice || r.offeredPrice || '—'}</span>
+            <span class="rc-status status-${r.status}">${r.status.replace('_',' ')}</span>
+          </div>
+          ${r.driver ? `<div class="rc-driver">🚗 ${r.driver.fullName || '—'} · ⭐ ${r.driver.rating?.average || '—'}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function renderActiveRide(ride) {
+      // ── Completed ride — show thank-you screen ──────────────────────────────
+      if (ride.status === 'completed') {
+        const fare = ride.finalPrice || ride.offeredPrice || 0;
+        const dist = ride.distanceKm ? parseFloat(ride.distanceKm).toFixed(1) + ' km' : '—';
+        const driverName = ride.driver ? ride.driver.fullName : '—';
+        document.getElementById('active-ride-content').innerHTML = `
+          <div style="
+            background:#fff; border-radius:20px; padding:36px 28px; text-align:center;
+            border:2px solid #22c55e; box-shadow:0 8px 32px rgba(34,197,94,0.12); max-width:520px; margin:0 auto;
+          ">
+            <div style="font-size:3.5rem; margin-bottom:12px">✅</div>
+            <h2 style="font-size:1.5rem; font-weight:800; color:#16a34a; margin-bottom:6px">Ride Completed!</h2>
+            <p style="color:#666; font-size:0.95rem; margin-bottom:24px">Thank you for using <strong>RidePK</strong>. We hope you had a great trip!</p>
+
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:14px; padding:18px 20px; margin-bottom:24px; text-align:left">
+              <div style="display:flex; justify-content:space-between; margin-bottom:10px">
+                <span style="color:#666; font-size:0.85rem">📍 From</span>
+                <span style="font-weight:600; font-size:0.9rem; max-width:60%; text-align:right">${ride.pickup?.address || '—'}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:10px">
+                <span style="color:#666; font-size:0.85rem">🏁 To</span>
+                <span style="font-weight:600; font-size:0.9rem; max-width:60%; text-align:right">${ride.destination?.address || '—'}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:10px">
+                <span style="color:#666; font-size:0.85rem">🚗 Driver</span>
+                <span style="font-weight:600; font-size:0.9rem">${driverName}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:10px">
+                <span style="color:#666; font-size:0.85rem">🛣️ Distance</span>
+                <span style="font-weight:600; font-size:0.9rem">${dist}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; border-top:1px solid #bbf7d0; padding-top:12px; margin-top:4px">
+                <span style="color:#666; font-size:0.9rem; font-weight:600">💰 Amount Paid</span>
+                <span style="font-size:1.2rem; font-weight:800; color:#16a34a">Rs. ${fare}</span>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">
+              <a href="index.html" class="btn-primary" style="
+                display:inline-block; background:#1a1a2e; color:#fff; padding:13px 24px;
+                border-radius:10px; font-weight:700; font-size:0.95rem; text-decoration:none; flex:1; min-width:140px;
+              ">🏠 Return to Dashboard</a>
+              <a href="booking.html" class="btn-primary" style="
+                display:inline-block; background:#ff6b00; color:#fff; padding:13px 24px;
+                border-radius:10px; font-weight:700; font-size:0.95rem; text-decoration:none; flex:1; min-width:140px;
+              ">🚗 Find Another Ride</a>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // ── Active ride statuses ────────────────────────────────────────────────
+      document.getElementById('active-ride-content').innerHTML = `
+        <div class="active-card">
+          <div class="ac-status ac-${ride.status}">
+            ${{
+              searching:      '🔍 Looking for a driver...',
+              accepted:       '✅ Driver accepted! On the way.',
+              driver_arrived: '📍 Driver is at your pickup!',
+              in_progress:    '🚗 Ride in progress...'
+            }[ride.status] || ride.status}
+          </div>
+          <div class="ac-route">
+            <div>📍 <b>From:</b> ${ride.pickup?.address}</div>
+            <div>🏁 <b>To:</b> ${ride.destination?.address}</div>
+          </div>
+          <div class="ac-price">Offered: <b>Rs. ${ride.offeredPrice}</b>  Final: <b>${ride.finalPrice ? 'Rs. '+ride.finalPrice : 'TBD'}</b></div>
+          ${ride.driver ? `
+            <div class="ac-driver">
+              <span>🚗</span>
+              <div>
+                <b>${ride.driver.fullName}</b><br/>
+                <small>${ride.driver.vehicle?.make} ${ride.driver.vehicle?.model} · ${ride.driver.vehicle?.plate}</small><br/>
+                <small>📞 ${ride.driver.phone}</small>
+              </div>
+              <span class="ac-rating">⭐ ${ride.driver.rating?.average}</span>
+            </div>
+          ` : ''}
+          <button class="btn-back" style="margin-top:12px" onclick="cancelRide('${ride._id}')">✕ Cancel Ride</button>
+        </div>
+      `;
+    }
+
+    async function cancelRide(rideId) {
+      if (!confirm('Are you sure you want to cancel this ride?')) return;
+      const data = await API.put(`/api/rides/${rideId}/cancel`, {});
+      if (data.success) { alert('Ride cancelled.'); loadRides(); }
+      else alert(data.message || 'Could not cancel.');
+    }
+
+    // ===== SECTION SWITCHER =====
+    function showSection(name, el) {
+      document.querySelectorAll('.dsection').forEach(s => s.classList.add('hidden'));
+      document.querySelectorAll('.snav-item').forEach(a => a.classList.remove('active'));
+      document.getElementById('sec-' + name).classList.remove('hidden');
+      if (el) el.classList.add('active');
+    }
+
+    // ===== PROFILE UPDATE =====
+    async function updateProfile() {
+      const data = await API.put('/api/users/profile', {
+        name:  document.getElementById('p-name').value,
+        email: document.getElementById('p-email').value
+      });
+      document.getElementById('profile-msg').textContent = data.message || (data.success ? 'Saved!' : 'Error saving.');
+    }
+
+    async function changePassword() {
+      const data = await API.put('/api/users/change-password', {
+        currentPassword: document.getElementById('old-pw').value,
+        newPassword:     document.getElementById('new-pw').value
+      });
+      document.getElementById('pw-msg').textContent = data.message || (data.success ? 'Password changed!' : 'Error.');
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'login.html';
+    }
+
+    // ===== INIT =====
+    loadUser();
+    loadRides();
+  </script>
+</body>
+</html>

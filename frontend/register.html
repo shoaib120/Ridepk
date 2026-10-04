@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Up — RidePK</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/auth.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Toast notification ── */
+    #toast-notify {
+      display: none;
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a2e;
+      color: #fff;
+      padding: 16px 24px;
+      border-radius: 12px;
+      border-left: 4px solid #ff6b00;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      z-index: 9999;
+      max-width: 440px;
+      width: 90%;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      animation: slideUp 0.3s ease;
+    }
+    #toast-notify .toast-title { font-weight: 700; color: #ff6b00; margin-bottom: 4px; }
+    #toast-notify .toast-close {
+      position: absolute;
+      top: 8px; right: 12px;
+      background: none; border: none; color: #888;
+      font-size: 1.2rem; cursor: pointer;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+  </style>
+</head>
+<body class="auth-page">
+
+  <!-- Toast Notification -->
+  <div id="toast-notify">
+    <button class="toast-close" onclick="document.getElementById('toast-notify').style.display='none'">×</button>
+    <div class="toast-title">✅ Account Created!</div>
+    <div id="toast-msg"></div>
+  </div>
+
+  <div class="auth-wrap">
+    <a href="index.html" class="logo" style="display:block;text-align:center;margin-bottom:24px">🚗 Ride<span>PK</span></a>
+
+    <div class="auth-card">
+      <h2>Create Account</h2>
+      <p class="auth-sub">Sign up as a passenger to book rides.</p>
+
+      <form id="registerForm" onsubmit="doRegister(event)">
+        <div class="two-col">
+          <div class="fgroup">
+            <label>Full Name *</label>
+            <input type="text" id="name" placeholder="Your name" required />
+          </div>
+          <div class="fgroup">
+            <label>Phone Number *</label>
+            <input type="tel" id="phone" placeholder="03XX-XXXXXXX" required />
+          </div>
+        </div>
+        <div class="fgroup">
+          <label>Email (optional)</label>
+          <input type="email" id="email" placeholder="your@email.com" />
+        </div>
+        <div class="fgroup">
+          <label>Password *</label>
+          <input type="password" id="password" placeholder="Create a strong password" required />
+        </div>
+        <div class="fgroup">
+          <label>Confirm Password *</label>
+          <input type="password" id="confirm" placeholder="Repeat password" required />
+        </div>
+        <div class="fgroup">
+          <label>
+            <input type="checkbox" id="terms" required />
+            I agree to the <a href="#" class="link">Terms &amp; Conditions</a>
+          </label>
+        </div>
+        <button type="submit" class="btn-confirm" id="reg-btn" style="width:100%">Create Account</button>
+      </form>
+
+      <p class="auth-switch">Already have an account? <a href="login.html" class="link">Login</a></p>
+      <p class="auth-switch">Want to drive? <a href="driver-register.html" class="link">Register as Driver</a></p>
+    </div>
+  </div>
+
+  <script>
+    function showToast(msg) {
+      var toast = document.getElementById('toast-notify');
+      document.getElementById('toast-msg').innerHTML = msg;
+      toast.style.display = 'block';
+      setTimeout(function() { toast.style.display = 'none'; }, 10000);
+    }
+
+    function doRegister(e) {
+      e.preventDefault();
+      var password = document.getElementById('password').value;
+      var confirm  = document.getElementById('confirm').value;
+      if (password !== confirm) { alert('Passwords do not match!'); return; }
+
+      var btn   = document.getElementById('reg-btn');
+      var email = document.getElementById('email').value;
+      var data  = {
+        name:     document.getElementById('name').value,
+        phone:    document.getElementById('phone').value,
+        email:    email,
+        password: password
+      };
+
+      btn.disabled    = true;
+      btn.textContent = 'Creating account...';
+
+      fetch((window.RIDEPK_API_BASE || 'http://localhost:5000') + '/api/auth/register', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(data)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (res.token) {
+          localStorage.setItem('token', res.token);
+          localStorage.setItem('role', 'passenger');
+
+          // Show toast before redirect
+          var msg = email
+            ? 'Welcome, <strong>' + data.name + '</strong>! Your account is ready.<br/>' +
+              '📧 A confirmation email was sent to <strong>' + email + '</strong>.<br/>' +
+              '📌 Check your <strong>Spam/Junk folder</strong> if you don\'t see it.'
+            : 'Welcome, <strong>' + data.name + '</strong>! Your account is ready.';
+
+          showToast(msg);
+
+          // Redirect after short delay so user can read the toast
+          setTimeout(function() {
+            window.location.href = 'booking.html';
+          }, 3000);
+
+        } else {
+          alert(res.message || 'Registration failed');
+          btn.disabled    = false;
+          btn.textContent = 'Create Account';
+        }
+      })
+      .catch(function() {
+        // Demo mode if backend not running
+        showToast('Account saved! (Demo mode — backend not running)');
+        localStorage.setItem('demo_user', JSON.stringify(data));
+        setTimeout(function() { window.location.href = 'booking.html'; }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>

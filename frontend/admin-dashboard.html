@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — RidePK</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    /* Body hidden until auth passes — prevents content flash */
+    body{font-family:'DM Sans',sans-serif;background:#0f0f13;color:#e8e8f0;min-height:100vh;display:none}
+
+    /* ── INLINE LOGIN OVERLAY ── */
+    #admin-login-overlay{position:fixed;inset:0;background:#0f0f13;z-index:9999;display:flex;align-items:center;justify-content:center}
+    .login-box{background:#17171f;border:1px solid #2a2a3a;border-radius:16px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.6)}
+    .login-box h2{font-family:Syne,sans-serif;font-size:1.5rem;font-weight:800;color:#fff;margin-bottom:4px}
+    .login-box p{color:#a0a0b8;font-size:0.84rem;margin-bottom:28px}
+    .lbl{display:block;font-size:0.78rem;color:#a0a0b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+    .linput{width:100%;padding:11px 14px;background:#0f0f13;border:1px solid #3a3a4a;border-radius:9px;color:#e8e8f0;font-size:0.9rem;margin-bottom:16px;outline:none;transition:border .2s}
+    .linput:focus{border-color:#ff6b00}
+    .btn-login{width:100%;padding:12px;background:#ff6b00;border:none;border-radius:9px;color:#fff;font-size:0.95rem;font-weight:700;cursor:pointer;transition:background .2s}
+    .btn-login:hover{background:#e05a00}
+    .btn-login:disabled{background:#555;cursor:not-allowed}
+    #login-err{color:#ff5555;font-size:0.82rem;margin-top:10px;min-height:18px;text-align:center}
+
+    /* LAYOUT */
+    .wrap{display:flex;min-height:100vh}
+
+    /* SIDEBAR */
+    .sidebar{width:220px;background:#17171f;border-right:1px solid #2a2a3a;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
+    .sb-logo{padding:22px 20px 16px;font-family:Syne,sans-serif;font-size:1.15rem;font-weight:800;color:#fff;border-bottom:1px solid #2a2a3a}
+    .sb-logo span{color:#ff6b00}
+    .sb-nav{flex:1;padding:10px 0;overflow-y:auto}
+    .nav-btn{display:flex;align-items:center;gap:10px;padding:11px 20px;cursor:pointer;color:#a0a0b8;font-size:0.88rem;font-weight:500;transition:all .15s;border-left:3px solid transparent;border:none;background:none;width:100%;text-align:left}
+    .nav-btn:hover{background:#1f1f2e;color:#fff}
+    .nav-btn.active{background:#1f1f2e;color:#ff6b00;border-left:3px solid #ff6b00}
+    .nav-icon{font-size:1rem;width:20px;text-align:center;flex-shrink:0}
+    .sb-footer{padding:14px 20px;border-top:1px solid #2a2a3a}
+    .sb-admin{font-size:0.78rem;color:#a0a0b8;margin-bottom:8px}
+    .btn-logout{width:100%;padding:8px 12px;background:#2a2a3a;border:1px solid #3a3a4a;border-radius:8px;color:#e8e8f0;cursor:pointer;font-size:0.82rem;transition:background .2s}
+    .btn-logout:hover{background:#ff3b3b33;color:#ff5555;border-color:#ff5555}
+
+    /* MAIN */
+    .main{margin-left:220px;flex:1;padding:28px 32px}
+
+    /* PAGE SECTIONS */
+    .page{display:none}
+    .page.active{display:block}
+    .ph{margin-bottom:22px}
+    .ph h1{font-family:Syne,sans-serif;font-size:1.5rem;font-weight:800;color:#fff}
+    .ph p{color:#a0a0b8;font-size:0.85rem;margin-top:3px}
+
+    /* STAT CARDS */
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:26px}
+    .scard{background:#17171f;border:1px solid #2a2a3a;border-radius:12px;padding:16px 18px;border-left:4px solid var(--c,#ff6b00)}
+    .scard.green{--c:#22c55e}.scard.blue{--c:#3b82f6}.scard.purple{--c:#a855f7}.scard.red{--c:#ef4444}.scard.orange{--c:#ff6b00}.scard.teal{--c:#14b8a6}
+    .scard .lbl{font-size:0.72rem;color:#a0a0b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+    .scard .val{font-size:1.8rem;font-weight:800;color:#fff;line-height:1}
+    .scard .sub{font-size:0.72rem;color:#a0a0b8;margin-top:3px}
+
+    /* TABLE CARD */
+    .tcard{background:#17171f;border:1px solid #2a2a3a;border-radius:12px;overflow:hidden;margin-bottom:22px}
+    .tcard-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #2a2a3a;flex-wrap:wrap}
+    .tcard-head h3{font-size:0.95rem;font-weight:700;color:#fff;flex:1;margin:0}
+    table{width:100%;border-collapse:collapse}
+    th{background:#1f1f2e;padding:9px 13px;text-align:left;font-size:0.72rem;color:#a0a0b8;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #2a2a3a}
+    td{padding:10px 13px;font-size:0.84rem;border-bottom:1px solid #1a1a28;color:#c8c8d8;vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:#1c1c2a}
+
+    /* BADGES */
+    .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:0.72rem;font-weight:600;text-transform:capitalize}
+    .bg{background:#22c55e22;color:#22c55e;border:1px solid #22c55e44}
+    .br{background:#ef444422;color:#ef4444;border:1px solid #ef444444}
+    .by{background:#eab30822;color:#eab308;border:1px solid #eab30844}
+    .bb{background:#3b82f622;color:#3b82f6;border:1px solid #3b82f644}
+    .bgr{background:#6b728022;color:#aaa;border:1px solid #6b728044}
+
+    /* ACTION BUTTONS */
+    .btn{padding:5px 12px;border:1px solid transparent;border-radius:7px;cursor:pointer;font-size:0.78rem;font-weight:600;transition:all .15s;background:none}
+    .btn-g{color:#22c55e;border-color:#22c55e44;background:#22c55e11}.btn-g:hover{background:#22c55e;color:#fff}
+    .btn-r{color:#ef4444;border-color:#ef444444;background:#ef444411}.btn-r:hover{background:#ef4444;color:#fff}
+    .btn-y{color:#eab308;border-color:#eab30844;background:#eab30811}.btn-y:hover{background:#eab308;color:#000}
+    .btn-b{color:#3b82f6;border-color:#3b82f644;background:#3b82f611}.btn-b:hover{background:#3b82f6;color:#fff}
+    .btn-gap{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+
+    /* INPUTS */
+    .inp{background:#1f1f2e;border:1px solid #2a2a3a;border-radius:7px;color:#e8e8f0;padding:6px 11px;font-size:0.82rem;outline:none}
+    .inp:focus{border-color:#ff6b00}
+    select.inp option{background:#17171f}
+
+    /* ACTIVITY */
+    .act-list{list-style:none;padding:0 16px;margin:0}
+    .act-list li{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px solid #1a1a28;font-size:0.83rem}
+    .act-list li:last-child{border-bottom:none}
+    .act-icon{flex-shrink:0;margin-top:1px}
+    .act-text{flex:1;color:#c8c8d8}
+    .act-time{color:#a0a0b8;font-size:0.72rem;white-space:nowrap}
+
+    /* PAGINATION */
+    .pgn{display:flex;gap:8px;align-items:center;padding:11px 16px;border-top:1px solid #2a2a3a}
+    .pgn button{background:#1f1f2e;border:1px solid #2a2a3a;color:#e8e8f0;padding:4px 11px;border-radius:6px;cursor:pointer;font-size:0.79rem}
+    .pgn button:disabled{opacity:.35;cursor:not-allowed}
+    .pgn span{color:#a0a0b8;font-size:0.79rem}
+
+    /* MODAL */
+    .modal-overlay{display:none;position:fixed;inset:0;background:#000b;z-index:500;align-items:center;justify-content:center}
+    .modal-overlay.open{display:flex}
+    .modal{background:#17171f;border:1px solid #2a2a3a;border-radius:14px;padding:26px;max-width:580px;width:93%;max-height:88vh;overflow-y:auto;position:relative}
+    .modal h2{font-family:Syne,sans-serif;font-size:1.1rem;font-weight:800;color:#fff;margin-bottom:14px}
+    .modal-x{position:absolute;top:14px;right:16px;background:none;border:none;color:#a0a0b8;font-size:1.3rem;cursor:pointer;line-height:1}
+    .modal-x:hover{color:#fff}
+    .dg{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:12px}
+    .dr{font-size:0.83rem}.dr .k{display:block;color:#a0a0b8;font-size:0.75rem;margin-bottom:1px}
+    .doc-grid{display:flex;flex-wrap:wrap;gap:9px;margin-top:10px}
+    .doc-img{width:110px;height:82px;object-fit:cover;border-radius:7px;border:1px solid #2a2a3a;cursor:pointer}
+    .doc-img:hover{border-color:#ff6b00}
+
+    /* SETTINGS */
+    .set-card{background:#17171f;border:1px solid #2a2a3a;border-radius:12px;padding:22px;max-width:420px}
+    .set-card h3{color:#fff;font-size:1rem;font-weight:700;margin-bottom:16px}
+    .fg{margin-bottom:14px}
+    .fg label{display:block;font-size:0.79rem;color:#a0a0b8;margin-bottom:5px}
+    .fg input{width:100%;background:#1f1f2e;border:1px solid #2a2a3a;border-radius:7px;color:#e8e8f0;padding:8px 11px;font-size:0.87rem;outline:none}
+    .fg input:focus{border-color:#ff6b00}
+    .ok{color:#22c55e;font-size:0.83rem;margin-top:8px}
+    .err{color:#ef4444;font-size:0.83rem;margin-top:8px}
+
+    /* SUBSCRIPTION PROOF IMAGE */
+    .proof-img{max-width:100%;border-radius:8px;border:1px solid #2a2a3a;cursor:pointer;margin-top:8px}
+    .sub-info{background:#1f1f2e;border-radius:10px;padding:14px 16px;margin-bottom:14px}
+    .sub-info .si-row{display:flex;gap:10px;margin-bottom:6px;font-size:0.84rem}
+    .sub-info .si-label{color:#a0a0b8;min-width:120px}
+    .sub-info .si-val{color:#e8e8f0;font-weight:600}
+
+    /* MISC */
+    .empty{text-align:center;padding:36px;color:#a0a0b8;font-size:0.88rem}
+    .spin{display:inline-block;width:16px;height:16px;border:2px solid #2a2a3a;border-top-color:#ff6b00;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle}
+    @keyframes sp{to{transform:rotate(360deg)}}
+
+    /* Pending badge on nav */
+    .nav-badge{background:#ff6b00;color:#fff;font-size:.65rem;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:auto}
+
+    @media(max-width:760px){.sidebar{display:none}.main{margin-left:0;padding:14px}}
+  </style>
+</head>
+<body>
+<!-- ══ INLINE LOGIN OVERLAY — shown when no valid admin session ══ -->
+<div id="admin-login-overlay" style="display:none">
+  <div class="login-box">
+    <h2>🔐 Admin Login</h2>
+    <p>RidePK Administration Panel</p>
+    <label class="lbl">Username</label>
+    <input class="linput" id="li-user" type="text" placeholder="admin" autocomplete="username" onkeydown="if(event.key==='Enter')doAdminLogin()" />
+    <label class="lbl">Password</label>
+    <input class="linput" id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAdminLogin()" />
+    <button class="btn-login" id="li-btn" onclick="doAdminLogin()">Sign In</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ═══════════════ SIDEBAR ═══════════════ -->
+  <aside class="sidebar">
+    <div class="sb-logo">🚗 Ride<span>PK</span></div>
+    <nav class="sb-nav">
+      <button class="nav-btn active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span>Dashboard</button>
+      <button class="nav-btn"        onclick="showPage('drivers',this)"><span class="nav-icon">🚗</span>Drivers</button>
+      <button class="nav-btn"        onclick="showPage('passengers',this)"><span class="nav-icon">👥</span>Passengers</button>
+      <button class="nav-btn"        onclick="showPage('rides',this)"><span class="nav-icon">📍</span>Rides</button>
+      <button class="nav-btn"        onclick="showPage('subscriptions',this)" id="sub-nav-btn"><span class="nav-icon">💳</span>Subscriptions<span id="sub-badge" class="nav-badge" style="display:none">0</span></button>
+      <button class="nav-btn"        onclick="showPage('activity',this)"><span class="nav-icon">📋</span>Activity</button>
+      <button class="nav-btn"        onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span>Settings</button>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-admin">👤 <span id="admin-name">Admin</span></div>
+      <button class="btn-logout" onclick="logout()">🚪 Logout</button>
+    </div>
+  </aside>
+
+  <!-- ═══════════════ MAIN ═══════════════ -->
+  <main class="main">
+
+    <!-- ── DASHBOARD ── -->
+    <div id="page-dashboard" class="page active">
+      <div class="ph"><h1>Dashboard</h1><p id="dash-time">Loading…</p></div>
+      <div class="stats-grid">
+        <div class="scard orange"><div class="lbl">Passengers</div><div class="val" id="s-pass">…</div></div>
+        <div class="scard green" ><div class="lbl">Total Drivers</div><div class="val" id="s-drv">…</div></div>
+        <div class="scard blue"  ><div class="lbl">Online Drivers</div><div class="val" id="s-on">…</div></div>
+        <div class="scard red"   ><div class="lbl">Pending Approval</div><div class="val" id="s-pend">…</div><div class="sub">drivers waiting</div></div>
+        <div class="scard purple"><div class="lbl">Total Rides</div><div class="val" id="s-rides">…</div></div>
+        <div class="scard teal"  ><div class="lbl">Today's Rides</div><div class="val" id="s-today">…</div></div>
+        <div class="scard green" ><div class="lbl">Completed</div><div class="val" id="s-comp">…</div></div>
+        <div class="scard orange"><div class="lbl">Revenue</div><div class="val" id="s-rev">…</div><div class="sub">PKR total</div></div>
+        <div class="scard purple"><div class="lbl">Pending Subs</div><div class="val" id="s-subs">…</div><div class="sub">subscriptions</div></div>
+      </div>
+      <div class="tcard">
+        <div class="tcard-head"><h3>📋 Recent Activity</h3><button class="btn btn-b" onclick="loadActivity(true)">↺ Refresh</button></div>
+        <ul class="act-list" id="act-dash"><li><span class="act-icon"><span class="spin"></span></span><span class="act-text">Loading…</span></li></ul>
+      </div>
+    </div>
+
+    <!-- ── DRIVERS ── -->
+    <div id="page-drivers" class="page">
+      <div class="ph"><h1>Drivers</h1><p>Manage driver accounts and approvals</p></div>
+      <div class="tcard">
+        <div class="tcard-head">
+          <h3>Driver List</h3>
+          <input  class="inp" id="drv-q" placeholder="🔍 Search name / phone…" oninput="drvPage=1;loadDrivers()" style="width:175px">
+          <select class="inp" id="drv-status" onchange="drvPage=1;loadDrivers()">
+            <option value="all">All Statuses</option>
+            <option value="pending" selected>Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="suspended">Suspended</option>
+          </select>
+          <button class="btn btn-b" onclick="drvPage=1;loadDrivers()">↺ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Vehicle</th><th>City</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody id="drv-tbody"><tr><td colspan="7" class="empty"><span class="spin"></span></td></tr></tbody>
+        </table>
+        <div class="pgn" id="drv-pgn"></div>
+      </div>
+    </div>
+
+    <!-- ── PASSENGERS ── -->
+    <div id="page-passengers" class="page">
+      <div class="ph"><h1>Passengers</h1><p>Manage passenger accounts</p></div>
+      <div class="tcard">
+        <div class="tcard-head">
+          <h3>Passenger List</h3>
+          <input  class="inp" id="pas-q" placeholder="🔍 Search…" oninput="pasPage=1;loadPassengers()" style="width:175px">
+          <select class="inp" id="pas-filter" onchange="pasPage=1;loadPassengers()">
+            <option value="">All</option>
+            <option value="frozen">Frozen only</option>
+          </select>
+          <button class="btn btn-b" onclick="pasPage=1;loadPassengers()">↺ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Rides</th><th>Rating</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="pas-tbody"><tr><td colspan="7" class="empty"><span class="spin"></span></td></tr></tbody>
+        </table>
+        <div class="pgn" id="pas-pgn"></div>
+      </div>
+    </div>
+
+    <!-- ── RIDES ── -->
+    <div id="page-rides" class="page">
+      <div class="ph"><h1>Rides</h1><p>All ride history</p></div>
+      <div class="tcard">
+        <div class="tcard-head">
+          <h3>Ride List</h3>
+          <select class="inp" id="ride-status" onchange="ridePage=1;loadRides()">
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button class="btn btn-b" onclick="ridePage=1;loadRides()">↺ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Passenger</th><th>Driver</th><th>From</th><th>To</th><th>Price</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody id="ride-tbody"><tr><td colspan="7" class="empty"><span class="spin"></span></td></tr></tbody>
+        </table>
+        <div class="pgn" id="ride-pgn"></div>
+      </div>
+
+      <!-- ── CANCELLATION HISTORY ── -->
+      <div class="tcard" style="margin-top:24px">
+        <div class="tcard-head">
+          <h3>🚫 Cancellation History by Passenger</h3>
+          <small style="color:#666;font-size:.8rem">Shows passengers with multiple cancellations. Click a name to filter rides above.</small>
+          <button class="btn btn-b" onclick="loadCancelHistory()">↺ Refresh</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Passenger</th>
+              <th>Phone</th>
+              <th>Cancellations</th>
+              <th>Last Cancelled</th>
+              <th>Cancelled By</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="cancel-tbody">
+            <tr><td colspan="6" class="empty">Click Refresh to load cancellation data.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── SUBSCRIPTIONS ── -->
+    <div id="page-subscriptions" class="page">
+      <div class="ph"><h1>Subscriptions</h1><p>Review driver subscription payment proofs</p></div>
+      <div class="tcard">
+        <div class="tcard-head">
+          <h3>💳 Pending Payment Proofs</h3>
+          <button class="btn btn-b" onclick="loadSubscriptions()">↺ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Driver</th><th>Phone</th><th>Plan</th><th>Amount</th><th>Method</th><th>Submitted</th><th>Actions</th></tr></thead>
+          <tbody id="sub-tbody"><tr><td colspan="7" class="empty"><span class="spin"></span></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── ACTIVITY ── -->
+    <div id="page-activity" class="page">
+      <div class="ph"><h1>Activity Log</h1><p>Last 30 events across the system</p></div>
+      <div class="tcard">
+        <div class="tcard-head"><h3>Recent Events</h3><button class="btn btn-b" onclick="loadActivity(false)">↺ Refresh</button></div>
+        <ul class="act-list" id="act-full"><li><span class="act-icon"><span class="spin"></span></span><span class="act-text">Loading…</span></li></ul>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div id="page-settings" class="page">
+      <div class="ph"><h1>Settings</h1><p>Change admin password</p></div>
+      <div class="set-card">
+        <h3>🔒 Change Admin Password</h3>
+        <div class="fg"><label>Current Password</label><input type="password" id="cp" placeholder="Current password"></div>
+        <div class="fg"><label>New Password</label><input type="password" id="np" placeholder="Min 8 characters"></div>
+        <div class="fg"><label>Confirm New Password</label><input type="password" id="cnp" placeholder="Repeat new password"></div>
+        <button class="btn btn-g" style="padding:8px 18px;font-size:0.88rem" onclick="changePass()">Update Password</button>
+        <div id="pwd-msg"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══ DRIVER DETAIL MODAL ══ -->
+<div class="modal-overlay" id="drv-modal">
+  <div class="modal">
+    <button class="modal-x" onclick="closeModal('drv-modal')">×</button>
+    <h2 id="mdl-name">Driver Details</h2>
+    <div class="dg"  id="mdl-grid"></div>
+    <div id="mdl-docs"></div>
+    <div id="mdl-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"></div>
+  </div>
+</div>
+
+<!-- ══ SUBSCRIPTION PROOF MODAL ══ -->
+<div class="modal-overlay" id="sub-modal">
+  <div class="modal">
+    <button class="modal-x" onclick="closeModal('sub-modal')">×</button>
+    <h2 id="sub-mdl-name">Subscription Proof</h2>
+    <div class="sub-info" id="sub-mdl-info"></div>
+    <div id="sub-mdl-proof"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px" id="sub-mdl-actions"></div>
+  </div>
+</div>
+
+<!-- ══ LIGHTBOX ══ -->
+<div class="modal-overlay" id="lb-modal" onclick="closeModal('lb-modal')">
+  <img id="lb-img" src="" style="max-width:90vw;max-height:90vh;border-radius:10px;display:block">
+</div>
+
+<script>
+// ── BACKEND URL ──────────────────────────────────────────────
+// Replace this with your Render URL when deployed, e.g.:
+// var API = 'https://ridepk-backend.onrender.com';
+var API = (typeof BACKEND_URL !== 'undefined') ? BACKEND_URL : 'http://localhost:5000';
+
+/* ══ Auth helper functions — defined first so IIFE can call them ══ */
+function showLoginOverlay() {
+  document.getElementById('admin-login-overlay').style.display = 'flex';
+  document.body.style.display = 'block';
+}
+
+function revealDashboard() {
+  document.getElementById('admin-login-overlay').style.display = 'none';
+  document.body.style.display = 'block';
+  var a = JSON.parse(sessionStorage.getItem('adminUser') || '{}');
+  if (a.username) document.getElementById('admin-name').textContent = a.username;
+  loadDashboard();
+}
+
+/* ══ AUTH GUARD — runs immediately on page load ══
+   body is display:none by default (CSS).
+   No token → show login overlay.
+   Token present → verify with server → reveal dashboard or show login.
+   Every page refresh requires a server round-trip to validate the token.
+*/
+(function () {
+  var t = sessionStorage.getItem('adminToken');
+  if (!t) { showLoginOverlay(); return; }
+
+  fetch(API + '/api/admin/stats', { headers: { Authorization: 'Bearer ' + t } })
+    .then(function(r) {
+      if (r.ok) {
+        revealDashboard();
+      } else {
+        sessionStorage.removeItem('adminToken');
+        sessionStorage.removeItem('adminUser');
+        showLoginOverlay();
+      }
+    })
+    .catch(function() {
+      /* Server unreachable — clear token and require login */
+      sessionStorage.removeItem('adminToken');
+      sessionStorage.removeItem('adminUser');
+      showLoginOverlay();
+    });
+})();
+
+function doAdminLogin() {
+  var user = (document.getElementById('li-user').value || '').trim();
+  var pass = (document.getElementById('li-pass').value || '').trim();
+  var errEl = document.getElementById('login-err');
+  var btn   = document.getElementById('li-btn');
+  errEl.textContent = '';
+  if (!user || !pass) { errEl.textContent = 'Enter username and password.'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+
+  fetch(API + '/api/admin/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: user, password: pass })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    btn.disabled = false; btn.textContent = 'Sign In';
+    if (d.token) {
+      sessionStorage.setItem('adminToken', d.token);
+      sessionStorage.setItem('adminUser', JSON.stringify({ username: user }));
+      revealDashboard();
+    } else {
+      errEl.textContent = d.message || 'Invalid credentials.';
+    }
+  })
+  .catch(function() {
+    btn.disabled = false; btn.textContent = 'Sign In';
+    errEl.textContent = 'Could not reach server. Is the backend running?';
+  });
+}
+
+function logout() {
+  sessionStorage.removeItem('adminToken');
+  sessionStorage.removeItem('adminUser');
+  /* Hide dashboard, show login overlay — no redirect needed */
+  document.getElementById('admin-login-overlay').style.display = 'flex';
+  document.querySelectorAll('.wrap').forEach(function(el){ el.style.display = 'none'; });
+  document.getElementById('li-pass').value = '';
+  document.getElementById('login-err').textContent = '';
+}
+
+/* ── HTTP HELPER ────────────────────────────────────────── */
+function req(method, path, body) {
+  var opts = {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + sessionStorage.getItem('adminToken')
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(API + path, opts)
+    .then(function(r){ return r.json(); })
+    .catch(function(){ return { error: true, message: 'Network error' }; });
+}
+
+/* ── HELPERS ────────────────────────────────────────────── */
+function fd(d){ return d ? new Date(d).toLocaleDateString('en-PK',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
+function ft(d){ return d ? new Date(d).toLocaleTimeString('en-PK',{hour:'2-digit',minute:'2-digit'}) : ''; }
+
+function badge(s) {
+  var m = { approved:'bg', pending:'by', rejected:'br', suspended:'br', completed:'bg', cancelled:'br', in_progress:'bb', accepted:'bb', none:'bgr' };
+  return '<span class="badge ' + (m[s]||'bgr') + '">' + (s||'?') + '</span>';
+}
+
+/* ── TAB NAVIGATION ─────────────────────────────────────── */
+var pageLoaders = {
+  dashboard:     loadDashboard,
+  drivers:       function(){ drvPage=1; loadDrivers(); },
+  passengers:    function(){ pasPage=1; loadPassengers(); },
+  rides:         function(){ ridePage=1; loadRides(); },
+  subscriptions: function(){ loadSubscriptions(); },
+  activity:      function(){ loadActivity(false); },
+  settings:      function(){}
+};
+
+function showPage(name, btn) {
+  /* hide all pages */
+  document.querySelectorAll('.page').forEach(function(el){ el.classList.remove('active'); });
+  /* deactivate all nav buttons */
+  document.querySelectorAll('.nav-btn').forEach(function(el){ el.classList.remove('active'); });
+  /* show target page */
+  document.getElementById('page-' + name).classList.add('active');
+  /* activate clicked button */
+  if (btn) btn.classList.add('active');
+  /* call loader */
+  if (pageLoaders[name]) pageLoaders[name]();
+}
+
+/* ── DASHBOARD ──────────────────────────────────────────── */
+function loadDashboard() {
+  document.getElementById('dash-time').textContent = new Date().toLocaleString('en-PK');
+  req('GET', '/api/admin/stats').then(function(d) {
+    if (!d.stats) {
+      document.querySelector('.stats-grid').innerHTML =
+        '<div style="color:#ef4444;padding:16px;grid-column:1/-1">⚠️ Cannot load stats. Is the backend running? (node server.js)</div>';
+      return;
+    }
+    var s = d.stats;
+    document.getElementById('s-pass').textContent  = s.totalPassengers  || 0;
+    document.getElementById('s-drv').textContent   = s.totalDrivers     || 0;
+    document.getElementById('s-on').textContent    = s.onlineDrivers    || 0;
+    document.getElementById('s-pend').textContent  = s.pendingDrivers   || 0;
+    document.getElementById('s-rides').textContent = s.totalRides       || 0;
+    document.getElementById('s-today').textContent = s.todayRides       || 0;
+    document.getElementById('s-comp').textContent  = s.completedRides   || 0;
+    document.getElementById('s-rev').textContent   = 'Rs.' + (s.totalRevenue || 0).toLocaleString();
+    var pendSubs = s.pendingSubscriptions || 0;
+    document.getElementById('s-subs').textContent  = pendSubs;
+    /* show badge on sidebar nav */
+    var badge = document.getElementById('sub-badge');
+    if (pendSubs > 0) {
+      badge.textContent = pendSubs;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+  });
+  loadActivity(true);
+}
+
+/* ── ACTIVITY ───────────────────────────────────────────── */
+function loadActivity(preview) {
+  var elId = preview ? 'act-dash' : 'act-full';
+  var el   = document.getElementById(elId);
+  el.innerHTML = '<li><span class="act-icon"><span class="spin"></span></span><span class="act-text">Loading…</span></li>';
+
+  req('GET', '/api/admin/activity').then(function(d) {
+    if (!d.log || !d.log.length) {
+      el.innerHTML = '<li><span class="act-text empty">No activity yet.</span></li>';
+      return;
+    }
+    var list = preview ? d.log.slice(0, 7) : d.log;
+    el.innerHTML = list.map(function(e) {
+      return '<li><span class="act-icon">' + e.icon + '</span>'
+           + '<span class="act-text">'    + e.text + '</span>'
+           + '<span class="act-time">'    + fd(e.time) + ' ' + ft(e.time) + '</span></li>';
+    }).join('');
+  });
+}
+
+/* ── DRIVERS ────────────────────────────────────────────── */
+var drvPage = 1;
+
+function loadDrivers() {
+  var q  = (document.getElementById('drv-q')      || {}).value || '';
+  var st = (document.getElementById('drv-status') || {}).value || 'all';
+  var tb = document.getElementById('drv-tbody');
+  tb.innerHTML = '<tr><td colspan="7" class="empty"><span class="spin"></span> Loading…</td></tr>';
+
+  req('GET', '/api/admin/drivers?status=' + st + '&page=' + drvPage + '&search=' + encodeURIComponent(q))
+  .then(function(d) {
+    if (!d.drivers || !d.drivers.length) {
+      tb.innerHTML = '<tr><td colspan="7" class="empty">No drivers found.</td></tr>';
+      document.getElementById('drv-pgn').innerHTML = '';
+      return;
+    }
+    tb.innerHTML = d.drivers.map(function(dr) {
+      var acts = '';
+      if (dr.status === 'pending') {
+        acts += '<button class="btn btn-g" onclick="approveDriver(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\')">✅ Approve</button>';
+        acts += '<button class="btn btn-r" onclick="rejectDriver(\''  + dr._id + '\',\'' + esc(dr.fullName) + '\')">❌ Reject</button>';
+      }
+      if (dr.status === 'approved')  acts += '<button class="btn btn-y" onclick="suspendDriver(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\')">⛔ Suspend</button>';
+      if (dr.status === 'suspended') acts += '<button class="btn btn-g" onclick="suspendDriver(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\')">✅ Reinstate</button>';
+      acts += '<button class="btn btn-b" onclick="openDrvModal(\'' + dr._id + '\')">📄 View</button>';
+      acts += '<button class="btn btn-r" onclick="deleteDriver(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\')">🗑</button>';
+      return '<tr>'
+        + '<td><strong>' + (dr.fullName || '—') + '</strong></td>'
+        + '<td>' + (dr.phone || '—') + '</td>'
+        + '<td>' + (dr.vehicle && dr.vehicle.type ? dr.vehicle.type : '—') + ' / ' + (dr.vehicle && dr.vehicle.model ? dr.vehicle.model : '—') + '</td>'
+        + '<td>' + (dr.city || '—') + '</td>'
+        + '<td>' + badge(dr.status) + '</td>'
+        + '<td>' + fd(dr.createdAt) + '</td>'
+        + '<td><div class="btn-gap">' + acts + '</div></td>'
+        + '</tr>';
+    }).join('');
+
+    buildPgn('drv-pgn', drvPage, d.pages || 1, function(p){ drvPage = p; loadDrivers(); });
+  });
+}
+
+function openDrvModal(id) {
+  document.getElementById('drv-modal').classList.add('open');
+  document.getElementById('mdl-grid').innerHTML    = '<div class="spin"></div>';
+  document.getElementById('mdl-docs').innerHTML    = '';
+  document.getElementById('mdl-actions').innerHTML = '';
+  document.getElementById('mdl-name').textContent  = 'Loading…';
+
+  req('GET', '/api/admin/drivers/' + id).then(function(d) {
+    if (!d.driver) { alert('Could not load driver.'); closeModal('drv-modal'); return; }
+    var dr = d.driver;
+    document.getElementById('mdl-name').textContent = dr.fullName || 'Driver';
+
+    var fields = [
+      ['Phone',   dr.phone],
+      ['CNIC',    dr.cnic],
+      ['City',    dr.city],
+      ['Status',  badge(dr.status)],
+      ['Vehicle', (dr.vehicle && dr.vehicle.type ? dr.vehicle.type : '—')],
+      ['Model',   (dr.vehicle && dr.vehicle.model ? dr.vehicle.model : '—')],
+      ['Plate',   (dr.vehicle && (dr.vehicle.plateNumber || dr.vehicle.plate) ? (dr.vehicle.plateNumber || dr.vehicle.plate) : '—')],
+      ['Color',   (dr.vehicle && dr.vehicle.color ? dr.vehicle.color : '—')],
+      ['Rating',  dr.rating && dr.rating.average ? dr.rating.average.toFixed(1) + ' ⭐' : '—'],
+      ['Rides',   dr.completedRides || 0],
+      ['Online',  dr.isOnline ? '🟢 Yes' : '🔴 No'],
+      ['Joined',  fd(dr.createdAt)]
+    ];
+    document.getElementById('mdl-grid').innerHTML = fields.map(function(f) {
+      return '<div class="dr"><span class="k">' + f[0] + '</span>' + (f[1] !== undefined && f[1] !== null ? f[1] : '—') + '</div>';
+    }).join('');
+
+    /* documents */
+    var docs = dr.documents || {};
+    var keys = [
+      ['cnicFront','CNIC Front'],['cnicBack','CNIC Back'],
+      ['drivingLicense','License'],['driverLicense','License'],
+      ['vehicleReg','Reg'],['vehicleRegistration','Reg'],
+      ['driverPhoto','Driver Photo'],['vehiclePhoto','Vehicle Photo'],
+      ['selfieWithCnic','Selfie+CNIC']
+    ];
+    var seen = {};
+    var imgs = keys.filter(function(k){ return docs[k[0]] && !seen[k[1]] && (seen[k[1]]=1); }).map(function(k) {
+      var url = (docs[k[0]] && docs[k[0]].startsWith('http')) ? docs[k[0]] : API + '/uploads/' + docs[k[0]];
+      return '<div style="text-align:center">'
+           + '<img class="doc-img" src="' + url + '" alt="' + k[1] + '" onclick="lightbox(\'' + url + '\')" onerror="this.style.display=\'none\'">'
+           + '<div style="font-size:.7rem;color:#a0a0b8;margin-top:3px">' + k[1] + '</div>'
+           + '</div>';
+    }).join('');
+    document.getElementById('mdl-docs').innerHTML = imgs
+      ? '<div style="font-size:.8rem;font-weight:600;color:#a0a0b8;margin-bottom:8px;margin-top:8px">Documents</div><div class="doc-grid">' + imgs + '</div>'
+      : '<div style="color:#a0a0b8;font-size:.8rem;margin-top:8px">No documents uploaded yet.</div>';
+
+    /* actions */
+    var act = '';
+    if (dr.status === 'pending') {
+      act += '<button class="btn btn-g" onclick="approveDriver(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\');closeModal(\'drv-modal\')">✅ Approve</button>';
+      act += '<button class="btn btn-r" onclick="rejectDriver(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\');closeModal(\'drv-modal\')">❌ Reject</button>';
+    } else if (dr.status === 'approved') {
+      act += '<button class="btn btn-y" onclick="suspendDriver(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\');closeModal(\'drv-modal\')">⛔ Suspend</button>';
+    } else if (dr.status === 'suspended') {
+      act += '<button class="btn btn-g" onclick="suspendDriver(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\');closeModal(\'drv-modal\')">✅ Reinstate</button>';
+    }
+    document.getElementById('mdl-actions').innerHTML = act;
+  });
+}
+
+function approveDriver(id, name) {
+  if (!confirm('Approve driver: ' + name + '?')) return;
+  req('PUT', '/api/admin/drivers/' + id + '/approve').then(function(d){ alert(d.message || 'Done.'); loadDrivers(); });
+}
+function rejectDriver(id, name) {
+  var reason = prompt('Rejection reason for ' + name + ':', 'Documents not clear.');
+  if (reason === null) return;
+  req('PUT', '/api/admin/drivers/' + id + '/reject', { reason: reason }).then(function(d){ alert(d.message || 'Done.'); loadDrivers(); });
+}
+function suspendDriver(id, name) {
+  if (!confirm('Toggle suspension for: ' + name + '?')) return;
+  req('PUT', '/api/admin/drivers/' + id + '/suspend').then(function(d){ alert(d.message || 'Done.'); loadDrivers(); });
+}
+function deleteDriver(id, name) {
+  if (!confirm('Permanently DELETE driver "' + name + '"?\nThis cannot be undone!')) return;
+  req('DELETE', '/api/admin/drivers/' + id).then(function(d){ alert(d.message || 'Deleted.'); loadDrivers(); });
+}
+
+/* ── PASSENGERS ─────────────────────────────────────────── */
+var pasPage = 1;
+
+function loadPassengers() {
+  var q  = (document.getElementById('pas-q')      || {}).value || '';
+  var f  = (document.getElementById('pas-filter') || {}).value || '';
+  var tb = document.getElementById('pas-tbody');
+  tb.innerHTML = '<tr><td colspan="7" class="empty"><span class="spin"></span> Loading…</td></tr>';
+
+  req('GET', '/api/admin/passengers?page=' + pasPage + '&search=' + encodeURIComponent(q) + '&status=' + f)
+  .then(function(d) {
+    if (!d.users || !d.users.length) {
+      tb.innerHTML = '<tr><td colspan="7" class="empty">No passengers found.</td></tr>';
+      document.getElementById('pas-pgn').innerHTML = '';
+      return;
+    }
+    tb.innerHTML = d.users.map(function(u) {
+      var frozen = u.isFrozen;
+      return '<tr>'
+        + '<td><strong>' + (u.name || '—') + '</strong></td>'
+        + '<td>' + (u.phone || '—') + '</td>'
+        + '<td>' + (u.email || '—') + '</td>'
+        + '<td>' + (u.totalRides || 0) + '</td>'
+        + '<td>' + (u.rating && u.rating.average ? u.rating.average.toFixed(1) : '5.0') + ' ⭐</td>'
+        + '<td>' + (frozen ? '<span class="badge br">Frozen</span>' : '<span class="badge bg">Active</span>') + '</td>'
+        + '<td><div class="btn-gap">'
+        + '<button class="btn ' + (frozen ? 'btn-g' : 'btn-y') + '" onclick="freezePassenger(\'' + u._id + '\',\'' + esc(u.name) + '\')">'
+        + (frozen ? '✅ Unfreeze' : '🧊 Freeze') + '</button>'
+        + '<button class="btn btn-r" onclick="deletePassenger(\'' + u._id + '\',\'' + esc(u.name) + '\')">🗑</button>'
+        + '</div></td></tr>';
+    }).join('');
+
+    buildPgn('pas-pgn', pasPage, d.pages || 1, function(p){ pasPage = p; loadPassengers(); });
+  });
+}
+
+function freezePassenger(id, name) {
+  if (!confirm('Toggle freeze for "' + name + '"?')) return;
+  req('PUT', '/api/admin/passengers/' + id + '/freeze').then(function(d){ alert(d.message || 'Done.'); loadPassengers(); });
+}
+function deletePassenger(id, name) {
+  if (!confirm('Permanently DELETE passenger "' + name + '"?')) return;
+  req('DELETE', '/api/admin/passengers/' + id).then(function(d){ alert(d.message || 'Deleted.'); loadPassengers(); });
+}
+
+/* ── RIDES ──────────────────────────────────────────────── */
+var ridePage = 1;
+
+function loadRides() {
+  var st = (document.getElementById('ride-status') || {}).value || 'all';
+  var tb = document.getElementById('ride-tbody');
+  tb.innerHTML = '<tr><td colspan="7" class="empty"><span class="spin"></span> Loading…</td></tr>';
+
+  req('GET', '/api/admin/rides?status=' + st + '&page=' + ridePage)
+  .then(function(d) {
+    if (!d.rides || !d.rides.length) {
+      tb.innerHTML = '<tr><td colspan="7" class="empty">No rides found.</td></tr>';
+      document.getElementById('ride-pgn').innerHTML = '';
+      return;
+    }
+    tb.innerHTML = d.rides.map(function(r) {
+      // Passenger name: always visible — from populated object or stored string on ride
+      var pName = (r.passenger && r.passenger.name) ? r.passenger.name
+                : (r.passengerName || '—');
+
+      // Driver name: only show after ride is accepted / in_progress / completed
+      var showDriver = ['accepted','in_progress','completed'].indexOf(r.status) !== -1;
+      var dName = showDriver ? (r.driver ? r.driver.fullName : '—')
+                : '<span style="color:#666;font-size:.78rem">—</span>';
+
+      // Price display
+      var price = r.finalPrice ? ('Rs. ' + r.finalPrice)
+                : (r.offeredFare ? ('Rs. ' + r.offeredFare) : 'Rs. ?');
+
+      // Cancel reason tooltip
+      var cancelInfo = '';
+      if (r.status === 'cancelled' && r.cancelReason) {
+        var tip = (r.cancelReason + ' (by ' + (r.cancelledBy || '?') + ')').replace(/"/g, '&quot;');
+        cancelInfo = ' <span title="' + tip + '" style="cursor:help;color:#ef4444;font-size:.85rem">⚠️</span>';
+      }
+
+      return '<tr>'
+        + '<td><strong>' + pName + '</strong></td>'
+        + '<td>' + dName + '</td>'
+        + '<td>' + ((r.pickup && r.pickup.address)           ? r.pickup.address.substring(0,22)      : '—') + '</td>'
+        + '<td>' + ((r.destination && r.destination.address) ? r.destination.address.substring(0,22) : '—') + '</td>'
+        + '<td>' + price + '</td>'
+        + '<td>' + badge(r.status) + cancelInfo + '</td>'
+        + '<td>' + fd(r.createdAt) + '</td>'
+        + '</tr>';
+    }).join('');
+
+    buildPgn('ride-pgn', ridePage, d.pages || 1, function(p){ ridePage = p; loadRides(); });
+  });
+}
+
+/* ── CANCELLATION HISTORY ───────────────────────────────── */
+function loadCancelHistory() {
+  var tb = document.getElementById('cancel-tbody');
+  tb.innerHTML = '<tr><td colspan="6" class="empty"><span class="spin"></span> Loading…</td></tr>';
+
+  // Fetch all cancelled rides (no paging needed — we aggregate client-side)
+  req('GET', '/api/admin/rides?status=cancelled&page=1&limit=200')
+  .then(function(d) {
+    if (!d.rides || !d.rides.length) {
+      tb.innerHTML = '<tr><td colspan="6" class="empty">No cancellations found.</td></tr>';
+      return;
+    }
+
+    // Group by passenger name + phone
+    var map = {};
+    d.rides.forEach(function(r) {
+      var name  = (r.passenger && r.passenger.name) ? r.passenger.name : (r.passengerName || 'Unknown');
+      var phone = (r.passenger && r.passenger.phone) ? r.passenger.phone : (r.passengerPhone || '—');
+      var key   = name + '|' + phone;
+      if (!map[key]) {
+        map[key] = { name: name, phone: phone, count: 0, lastDate: null, byPassenger: 0, byDriver: 0 };
+      }
+      map[key].count++;
+      var d2 = new Date(r.cancelledAt || r.updatedAt || r.createdAt);
+      if (!map[key].lastDate || d2 > map[key].lastDate) map[key].lastDate = d2;
+      if (r.cancelledBy === 'driver') map[key].byDriver++;
+      else map[key].byPassenger++;
+    });
+
+    // Sort by cancellation count descending
+    var rows = Object.values(map).sort(function(a, b) { return b.count - a.count; });
+
+    if (!rows.length) {
+      tb.innerHTML = '<tr><td colspan="6" class="empty">No passenger cancellations found.</td></tr>';
+      return;
+    }
+
+    tb.innerHTML = rows.map(function(row) {
+      var countBadge = row.count >= 5
+        ? '<span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:99px;font-size:.78rem;font-weight:700">' + row.count + ' ⚠️</span>'
+        : row.count >= 3
+          ? '<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:99px;font-size:.78rem;font-weight:700">' + row.count + '</span>'
+          : '<span style="background:#e5e7eb;color:#374151;padding:2px 8px;border-radius:99px;font-size:.78rem">' + row.count + '</span>';
+
+      var byLine = '';
+      if (row.byPassenger > 0) byLine += row.byPassenger + ' by passenger';
+      if (row.byDriver > 0)    byLine += (byLine ? ', ' : '') + row.byDriver + ' by driver';
+
+      var lastDate = row.lastDate ? row.lastDate.toLocaleDateString() : '—';
+
+      return '<tr>'
+        + '<td><strong>' + row.name + '</strong></td>'
+        + '<td>' + row.phone + '</td>'
+        + '<td>' + countBadge + '</td>'
+        + '<td>' + lastDate + '</td>'
+        + '<td style="font-size:.82rem;color:#555">' + (byLine || '—') + '</td>'
+        + '<td><button class="btn btn-b" style="font-size:.75rem;padding:3px 10px" onclick="filterByPassenger(' + JSON.stringify(row.name) + ')">View Rides</button></td>'
+        + '</tr>';
+    }).join('');
+  });
+}
+
+function filterByPassenger(name) {
+  // Switch to all rides and filter to cancelled, hint to user
+  var sel = document.getElementById('ride-status');
+  if (sel) { sel.value = 'cancelled'; }
+  ridePage = 1;
+  loadRides();
+  // Scroll up to the rides table
+  var rideEl = document.getElementById('ride-tbody');
+  if (rideEl) rideEl.closest('.tcard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── SUBSCRIPTIONS ──────────────────────────────────────── */
+function loadSubscriptions() {
+  var tb = document.getElementById('sub-tbody');
+  tb.innerHTML = '<tr><td colspan="7" class="empty"><span class="spin"></span> Loading…</td></tr>';
+
+  req('GET', '/api/admin/subscriptions/pending').then(function(d) {
+    if (!d.drivers || !d.drivers.length) {
+      tb.innerHTML = '<tr><td colspan="7" class="empty">✅ No pending subscription proofs.</td></tr>';
+      document.getElementById('sub-badge').style.display = 'none';
+      return;
+    }
+
+    /* update sidebar badge */
+    document.getElementById('sub-badge').textContent = d.drivers.length;
+    document.getElementById('sub-badge').style.display = 'inline';
+
+    tb.innerHTML = d.drivers.map(function(dr) {
+      var sub  = dr.subscription || {};
+      var plan = sub.plan || 'monthly';
+      var amt  = sub.amount ? 'Rs. ' + sub.amount : '—';
+      var meth = sub.paymentMethod || '—';
+      return '<tr>'
+        + '<td><strong>' + (dr.fullName || '—') + '</strong></td>'
+        + '<td>' + (dr.phone || '—') + '</td>'
+        + '<td>' + plan + '</td>'
+        + '<td>' + amt + '</td>'
+        + '<td>' + meth + '</td>'
+        + '<td>' + fd(sub.submittedAt) + '</td>'
+        + '<td><div class="btn-gap">'
+        + '<button class="btn btn-b" onclick="openSubModal(\'' + dr._id + '\')">📄 View Proof</button>'
+        + '<button class="btn btn-g" onclick="reviewSub(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\',\'approve\')">✅ Approve</button>'
+        + '<button class="btn btn-r" onclick="reviewSub(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\',\'reject\')">❌ Reject</button>'
+        + '</div></td>'
+        + '</tr>';
+    }).join('');
+  });
+}
+
+function openSubModal(id) {
+  document.getElementById('sub-modal').classList.add('open');
+  document.getElementById('sub-mdl-name').textContent = 'Loading…';
+  document.getElementById('sub-mdl-info').innerHTML = '<span class="spin"></span>';
+  document.getElementById('sub-mdl-proof').innerHTML = '';
+  document.getElementById('sub-mdl-actions').innerHTML = '';
+
+  req('GET', '/api/admin/drivers/' + id).then(function(d) {
+    if (!d.driver) { alert('Could not load driver.'); closeModal('sub-modal'); return; }
+    var dr  = d.driver;
+    var sub = dr.subscription || {};
+    document.getElementById('sub-mdl-name').textContent = '💳 ' + (dr.fullName || 'Driver') + ' — Subscription';
+
+    document.getElementById('sub-mdl-info').innerHTML =
+      '<div class="si-row"><span class="si-label">Driver Name</span><span class="si-val">' + (dr.fullName || '—') + '</span></div>' +
+      '<div class="si-row"><span class="si-label">Phone</span><span class="si-val">' + (dr.phone || '—') + '</span></div>' +
+      '<div class="si-row"><span class="si-label">Plan</span><span class="si-val">' + (sub.plan || '—') + '</span></div>' +
+      '<div class="si-row"><span class="si-label">Amount Paid</span><span class="si-val">Rs. ' + (sub.amount || '—') + '</span></div>' +
+      '<div class="si-row"><span class="si-label">Payment Method</span><span class="si-val">' + (sub.paymentMethod || '—') + '</span></div>' +
+      '<div class="si-row"><span class="si-label">Submitted</span><span class="si-val">' + fd(sub.submittedAt) + ' ' + ft(sub.submittedAt) + '</span></div>';
+
+    /* proof image */
+    if (sub.proofFile) {
+      var proofUrl = (sub.proofFile && sub.proofFile.startsWith('http')) ? sub.proofFile : API + '/uploads/' + sub.proofFile;
+      document.getElementById('sub-mdl-proof').innerHTML =
+        '<div style="font-size:.85rem;font-weight:600;color:#a0a0b8;margin-bottom:8px">Payment Screenshot:</div>' +
+        '<img class="proof-img" src="' + proofUrl + '" alt="Payment Proof" onclick="lightbox(\'' + proofUrl + '\')" onerror="this.outerHTML=\'<div class=\\"err\\">Image not found on server.</div>\'">';
+    } else {
+      document.getElementById('sub-mdl-proof').innerHTML =
+        '<div style="color:#a0a0b8;font-size:.84rem;margin-top:8px">⚠️ No proof image uploaded.</div>';
+    }
+
+    document.getElementById('sub-mdl-actions').innerHTML =
+      '<button class="btn btn-g" style="padding:8px 18px" onclick="reviewSub(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\',\'approve\');closeModal(\'sub-modal\')">✅ Approve Subscription</button>' +
+      '<button class="btn btn-r" style="padding:8px 18px" onclick="reviewSub(\'' + dr._id + '\',\'' + esc(dr.fullName) + '\',\'reject\');closeModal(\'sub-modal\')">❌ Reject Subscription</button>';
+  });
+}
+
+function reviewSub(id, name, action) {
+  var msg = action === 'approve'
+    ? 'Approve subscription for "' + name + '"?\nAn approval email will be sent to the driver.'
+    : 'Reject subscription for "' + name + '"?\nA rejection email will be sent to the driver.';
+  if (!confirm(msg)) return;
+
+  req('PUT', '/api/admin/drivers/' + id + '/subscription', { action: action }).then(function(d) {
+    if (d.success) {
+      alert(d.message || 'Done.');
+      loadSubscriptions(); /* refresh list */
+    } else {
+      alert(d.message || 'Something went wrong.');
+    }
+  });
+}
+
+/* ── SETTINGS ───────────────────────────────────────────── */
+function changePass() {
+  var cp  = document.getElementById('cp').value;
+  var np  = document.getElementById('np').value;
+  var cnp = document.getElementById('cnp').value;
+  var msg = document.getElementById('pwd-msg');
+  msg.innerHTML = '';
+
+  if (!cp || !np || !cnp)  { msg.innerHTML = '<div class="err">All fields are required.</div>';           return; }
+  if (np.length < 8)        { msg.innerHTML = '<div class="err">New password must be 8+ characters.</div>'; return; }
+  if (np !== cnp)           { msg.innerHTML = '<div class="err">Passwords do not match.</div>';             return; }
+
+  req('PUT', '/api/admin/change-password', { currentPassword: cp, newPassword: np }).then(function(d) {
+    if (d.success) {
+      msg.innerHTML = '<div class="ok">✅ Password updated! Logging out…</div>';
+      setTimeout(logout, 2200);
+    } else {
+      msg.innerHTML = '<div class="err">❌ ' + (d.message || 'Failed.') + '</div>';
+    }
+  });
+}
+
+/* ── PAGINATION ─────────────────────────────────────────── */
+function buildPgn(elId, cur, total, cb) {
+  var el = document.getElementById(elId);
+  if (total <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML =
+    '<button ' + (cur <= 1 ? 'disabled' : '') + ' onclick="pgClick(' + (cur-1) + ',\'' + elId + '\')">← Prev</button>'
+    + '<span>Page ' + cur + ' of ' + total + '</span>'
+    + '<button ' + (cur >= total ? 'disabled' : '') + ' onclick="pgClick(' + (cur+1) + ',\'' + elId + '\')">Next →</button>';
+
+  /* store callback */
+  pgnCbs[elId] = cb;
+}
+var pgnCbs = {};
+function pgClick(page, elId) {
+  if (pgnCbs[elId]) pgnCbs[elId](page);
+}
+
+/* ── MODAL HELPERS ──────────────────────────────────────── */
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function lightbox(src)  { document.getElementById('lb-img').src = src; document.getElementById('lb-modal').classList.add('open'); }
+function esc(s)         { return (s || '').replace(/'/g, "\\'"); }
+
+/* ── INIT called by revealDashboard() after auth ────────── */
+</script>
+</body>
+</html>

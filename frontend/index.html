@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RidePK — Your Ride, Your Price</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">🚗 Ride<span>PK</span></a>
+      <ul class="nav-links">
+        <li><a href="cities.html">Cities</a></li>
+        <li><a href="driver-register.html">Drive With Us</a></li>
+        <li><a href="login.html" class="btn-nav-outline">Login</a></li>
+        <li><a href="register.html" class="btn-nav-fill">Sign Up</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="badge">🇵🇰 Available in Mirpur Division, AJK</div>
+      <h1>You Name<br/>The <span class="orange">Price.</span><br/><span class="sub">We Find Your Ride.</span></h1>
+      <p class="hero-desc">Pakistan's fairest ride app. You set the price, drivers accept or negotiate. No surge pricing. No hidden fees.</p>
+      <div class="hero-btns">
+        <a href="booking.html" class="btn-primary">Book a Ride →</a>
+        <a href="driver-register.html" class="btn-ghost">Become a Driver</a>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong>50K+</strong><span>Drivers</span></div>
+        <div class="sdiv"></div>
+        <div class="stat"><strong>8</strong><span>Cities</span></div>
+        <div class="sdiv"></div>
+        <div class="stat"><strong>2M+</strong><span>Rides Done</span></div>
+      </div>
+    </div>
+    <div class="hero-phone">
+      <div class="phone-wrap">
+        <div class="phone-screen">
+          <div class="pmap">
+            <div class="proute"></div>
+            <div class="ppin green">A</div>
+            <div class="ppin orange">B</div>
+            <div class="pcar">🚗</div>
+          </div>
+          <div class="pcard">
+            <div class="pdriver">
+              <span class="pavatar">👨</span>
+              <div><b>Ahmed K.</b><small>⭐ 4.9</small></div>
+              <span class="pprice">Rs. 350</span>
+            </div>
+            <div class="paccept">Accept Ride</div>
+          </div>
+        </div>
+      </div>
+      <div class="ftag t1">📍 Lahore → Islamabad</div>
+      <div class="ftag t2">⏱ 3 min away</div>
+      <div class="ftag t3">💰 You set the fare</div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section hiw-section">
+    <div class="container">
+      <p class="stag">Simple Process</p>
+      <h2>How RidePK Works</h2>
+      <p class="sdesc">Three steps to get you moving anywhere in Pakistan</p>
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('passenger')">For Passengers</button>
+        <button class="tab" onclick="showTab('driver')">For Drivers</button>
+      </div>
+      <div class="steps" id="tab-passenger">
+        <div class="step-card">
+          <div class="snum">01</div>
+          <div class="sico">📍</div>
+          <h3>Set Your Location</h3>
+          <p>Enter pickup and destination. The app shows route and distance on the live map.</p>
+        </div>
+        <div class="sarrow">→</div>
+        <div class="step-card">
+          <div class="snum">02</div>
+          <div class="sico">💰</div>
+          <h3>Name Your Price</h3>
+          <p>Suggest a price you think is fair. Drivers nearby see your request and accept or counter.</p>
+        </div>
+        <div class="sarrow">→</div>
+        <div class="step-card">
+          <div class="snum">03</div>
+          <div class="sico">🚗</div>
+          <h3>Ride & Pay</h3>
+          <p>Track your driver live on the map. Pay by cash, EasyPaisa, or JazzCash on arrival.</p>
+        </div>
+      </div>
+      <div class="steps hidden" id="tab-driver">
+        <div class="step-card">
+          <div class="snum">01</div>
+          <div class="sico">📝</div>
+          <h3>Register as Driver</h3>
+          <p>Fill details, upload CNIC + driving license + vehicle registration. Approval in 24–48 hours.</p>
+        </div>
+        <div class="sarrow">→</div>
+        <div class="step-card">
+          <div class="snum">02</div>
+          <div class="sico">🔔</div>
+          <h3>Receive Requests</h3>
+          <p>Go online when ready. See passenger name, pickup, destination, and offered price near you.</p>
+        </div>
+        <div class="sarrow">→</div>
+        <div class="step-card">
+          <div class="snum">03</div>
+          <div class="sico">💵</div>
+          <h3>Accept & Earn</h3>
+          <p>Accept or negotiate the price. Complete ride. Withdraw weekly to bank or EasyPaisa/JazzCash.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CITIES -->
+  <section class="section cities-section">
+    <div class="container">
+      <p class="stag">Coverage</p>
+      <h2>Available Cities</h2>
+      <p class="sdesc">City rides AND city-to-city intercity travel both available</p>
+      <div class="cities-grid">
+        <div class="city-card big"><div class="cico">🏙️</div><h3>Karachi</h3><p>Full coverage + intercity</p><span class="cbadge">Active</span></div>
+        <div class="city-card big"><div class="cico">🌆</div><h3>Lahore</h3><p>Full coverage + intercity</p><span class="cbadge">Active</span></div>
+        <div class="city-card"><div class="cico">🏛️</div><h3>Islamabad</h3><span class="cbadge">Active</span></div>
+        <div class="city-card"><div class="cico">🌇</div><h3>Rawalpindi</h3><span class="cbadge">Active</span></div>
+        <div class="city-card"><div class="cico">🕌</div><h3>Peshawar</h3><span class="cbadge">Active</span></div>
+        <div class="city-card"><div class="cico">🌄</div><h3>Quetta</h3><span class="cbadge">Active</span></div>
+        <div class="city-card"><div class="cico">🏙️</div><h3>Multan</h3><span class="cbadge">Active</span></div>
+        <div class="city-card"><div class="cico">🏭</div><h3>Faisalabad</h3><span class="cbadge">Active</span></div>
+      </div>
+      <div style="text-align:center;margin-top:32px;">
+        <a href="cities.html" class="btn-ghost">View All Cities & Routes →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section feat-section">
+    <div class="container">
+      <p class="stag">Why RidePK</p>
+      <h2>Built for Pakistan</h2>
+      <div class="feat-grid">
+        <div class="feat-card"><div class="fico">🗺️</div><h3>Live GPS Tracking</h3><p>Track your driver in real time. Share your trip with family for safety.</p></div>
+        <div class="feat-card"><div class="fico">💬</div><h3>Price Negotiation</h3><p>You set the price. Drivers can counter. Both agree before the ride starts.</p></div>
+        <div class="feat-card"><div class="fico">🛡️</div><h3>Verified Drivers</h3><p>Every driver goes through CNIC, license check, and vehicle inspection.</p></div>
+        <div class="feat-card"><div class="fico">💳</div><h3>Cash or Online</h3><p>Pay by cash, EasyPaisa, JazzCash, or bank card — your choice.</p></div>
+        <div class="feat-card"><div class="fico">🌙</div><h3>24/7 Rides</h3><p>Day or night, intercity or within city — drivers always available.</p></div>
+        <div class="feat-card"><div class="fico">🗣️</div><h3>Urdu Support</h3><p>Full Urdu language support. Customer support in Urdu and English.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-band">
+    <h2>Ready to Ride?</h2>
+    <p>Join thousands of Pakistanis who choose RidePK every day</p>
+    <div class="cta-btns">
+      <a href="booking.html" class="btn-white">Book a Ride Now</a>
+      <a href="driver-register.html" class="btn-outline-white">Register as Driver</a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="fbrand">
+        <div class="logo">🚗 Ride<span>PK</span></div>
+        <p>Pakistan's fairest ride-hailing platform.</p>
+      </div>
+      <div class="flinks">
+        <div><h4>Passengers</h4><a href="booking.html">Book a Ride</a><a href="cities.html">Cities</a><a href="register.html">Sign Up</a></div>
+        <div><h4>Drivers</h4><a href="driver-register.html">Register</a><a href="login.html">Driver Login</a></div>
+        <div><h4>Company</h4><a href="#">About</a><a href="#">Safety</a><a href="#">Contact</a></div>
+      </div>
+    </div>
+    <div class="fcopy">© 2024 RidePK — Made for Pakistan 🇵🇰</div>
+  </footer>
+
+  <script>
+    // Navbar scroll effect
+    window.addEventListener('scroll', () => {
+      document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 50);
+    });
+    // Tab switching
+    function showTab(name) {
+      document.querySelectorAll('.steps').forEach(s => s.classList.add('hidden'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.remove('hidden');
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

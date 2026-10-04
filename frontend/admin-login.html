@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — RidePK</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="admin-login-page">
+    <div class="admin-login-card">
+      <a href="index.html" class="logo" style="display:block;text-align:center;margin-bottom:20px;font-family:Syne,sans-serif;font-size:1.4rem;font-weight:800;">🚗 Ride<span style="color:#ff6b00">PK</span></a>
+      <div style="text-align:center;margin-bottom:20px">
+        <span class="admin-badge-top">🔐 Admin Panel</span>
+      </div>
+      <div class="atitle">Admin Login</div>
+      <p class="asub">Enter your admin credentials to continue.</p>
+      <form onsubmit="doAdminLogin(event)">
+        <div class="fgroup">
+          <label>Username</label>
+          <input type="text" id="username" placeholder="admin" required autocomplete="username" />
+        </div>
+        <div class="fgroup">
+          <label>Password</label>
+          <input type="password" id="password" placeholder="Admin password" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn-confirm" id="login-btn" style="width:100%;margin-top:8px">Login to Admin Panel</button>
+      </form>
+      <div id="login-error" class="auth-error hidden" style="margin-top:12px;padding:10px;border-radius:8px;background:#ef444422;color:#ef4444;border:1px solid #ef444444;display:none;font-size:0.88rem"></div>
+      <p style="text-align:center;font-size:0.8rem;color:var(--muted,#888);margin-top:20px">
+        This page is for administrators only.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    var API_BASE = 'http://localhost:5000';
+
+    /* ── CHECK IF ALREADY LOGGED IN (with validation) ── */
+    (function () {
+      var token = localStorage.getItem('adminToken');
+      if (!token) return; /* no token → show login form */
+
+      /* Validate token against server before redirecting */
+      fetch(API_BASE + '/api/admin/stats', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      .then(function(r) {
+        if (r.ok) {
+          window.location.href = 'admin-dashboard.html'; /* still valid */
+        } else {
+          /* expired / wrong → clear and show form */
+          localStorage.removeItem('adminToken');
+          localStorage.removeItem('adminUser');
+        }
+      })
+      .catch(function() {
+        /* server down → clear token so form shows */
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminUser');
+      });
+    })();
+
+    function showError(msg) {
+      var el = document.getElementById('login-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+    function hideError() {
+      document.getElementById('login-error').style.display = 'none';
+    }
+
+    function doAdminLogin(e) {
+      e.preventDefault();
+      hideError();
+
+      var btn      = document.getElementById('login-btn');
+      var username = document.getElementById('username').value.trim();
+      var password = document.getElementById('password').value;
+
+      if (!username || !password) {
+        showError('Please enter both username and password.');
+        return;
+      }
+
+      btn.disabled    = true;
+      btn.textContent = 'Logging in…';
+
+      fetch(API_BASE + '/api/admin/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ username: username, password: password })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.token) {
+          localStorage.setItem('adminToken', data.token);
+          localStorage.setItem('adminUser',  JSON.stringify(data.admin));
+          window.location.href = 'admin-dashboard.html';
+        } else {
+          showError('❌ ' + (data.message || 'Invalid credentials. Check username and password.'));
+          btn.disabled    = false;
+          btn.textContent = 'Login to Admin Panel';
+        }
+      })
+      .catch(function() {
+        showError('❌ Cannot connect to server. Make sure you ran: node server.js');
+        btn.disabled    = false;
+        btn.textContent = 'Login to Admin Panel';
+      });
+    }
+  </script>
+</body>
+</html>

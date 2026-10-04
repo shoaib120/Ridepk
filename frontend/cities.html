@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cities — RidePK</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <nav class="navbar scrolled">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">🚗 Ride<span>PK</span></a>
+      <ul class="nav-links">
+        <li><a href="booking.html">Book a Ride</a></li>
+        <li><a href="login.html" class="btn-nav-outline">Login</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="cities-page">
+    <div class="container" style="padding-top:100px">
+      <p class="stag">Coverage Map</p>
+      <h1>Cities We Serve</h1>
+      <p class="sdesc">RidePK works in 2 modes: <b>City Rides</b> (within one city) and <b>Intercity</b> (city to city). Both use live maps and price negotiation.</p>
+
+      <!-- FILTER TABS -->
+      <div class="tabs" style="margin-bottom:40px">
+        <button class="tab active" onclick="filterCities('all',this)">All Cities</button>
+        <button class="tab" onclick="filterCities('city',this)">City Rides</button>
+        <button class="tab" onclick="filterCities('intercity',this)">Intercity Routes</button>
+      </div>
+
+      <!-- CITY CARDS -->
+      <div class="cities-detail-grid" id="city-grid">
+
+        <div class="city-detail-card" data-type="city intercity">
+          <div class="cd-head karachi-bg">
+            <div class="cd-emoji">🏙️</div>
+          </div>
+          <div class="cd-body">
+            <div class="cd-top">
+              <h3>Karachi</h3>
+              <span class="cbadge">Active</span>
+            </div>
+            <p>Mirpur Division, AJK. Full coverage all areas including Defence, Clifton, Gulshan, Malir, and all districts.</p>
+            <div class="cd-tags">
+              <span class="tag">City Rides</span>
+              <span class="tag">Intercity</span>
+            </div>
+            <div class="cd-routes">
+              <b>Intercity Routes:</b>
+              <span>Karachi → Hyderabad</span>
+              <span>Karachi → Sukkur</span>
+              <span>Karachi → Quetta</span>
+            </div>
+            <a href="booking.html" class="btn-primary" style="display:block;text-align:center;padding:10px">Book in Karachi</a>
+          </div>
+        </div>
+
+        <div class="city-detail-card" data-type="city intercity">
+          <div class="cd-head lahore-bg"><div class="cd-emoji">🌆</div></div>
+          <div class="cd-body">
+            <div class="cd-top"><h3>Lahore</h3><span class="cbadge">Active</span></div>
+            <p>Full coverage including DHA, Gulberg, Model Town, Johar Town, and all areas.</p>
+            <div class="cd-tags"><span class="tag">City Rides</span><span class="tag">Intercity</span></div>
+            <div class="cd-routes">
+              <b>Intercity Routes:</b>
+              <span>Lahore → Islamabad</span>
+              <span>Lahore → Multan</span>
+              <span>Lahore → Faisalabad</span>
+            </div>
+            <a href="booking.html" class="btn-primary" style="display:block;text-align:center;padding:10px">Book in Lahore</a>
+          </div>
+        </div>
+
+        <div class="city-detail-card" data-type="city intercity">
+          <div class="cd-head isb-bg"><div class="cd-emoji">🏛️</div></div>
+          <div class="cd-body">
+            <div class="cd-top"><h3>Islamabad</h3><span class="cbadge">Active</span></div>
+            <p>All sectors covered — F, G, H, I sectors and Margalla Hills areas.</p>
+            <div class="cd-tags"><span class="tag">City Rides</span><span class="tag">Intercity</span></div>
+            <div class="cd-routes">
+              <b>Intercity Routes:</b>
+              <span>Islamabad → Lahore</span>
+              <span>Islamabad → Peshawar</span>
+            </div>
+            <a href="booking.html" class="btn-primary" style="display:block;text-align:center;padding:10px">Book in Islamabad</a>
+          </div>
+        </div>
+
+        <div class="city-detail-card" data-type="city">
+          <div class="cd-head rwp-bg"><div class="cd-emoji">🌇</div></div>
+          <div class="cd-body">
+            <div class="cd-top"><h3>Rawalpindi</h3><span class="cbadge">Active</span></div>
+            <p>Saddar, Westridge, Bahria Town, and all cantonment areas covered.</p>
+            <div class="cd-tags"><span class="tag">City Rides</span></div>
+            <a href="booking.html" class="btn-primary" style="display:block;text-align:center;padding:10px">Book in Rawalpindi</a>
+          </div>
+        </div>
+
+        <div class="city-detail-card" data-type="city">
+          <div class="cd-head pesh-bg"><div class="cd-emoji">🕌</div></div>
+          <div class="cd-body">
+            <div class="cd-top"><h3>Peshawar</h3><span class="cbadge">Active</span></div>
+            <p>Hayatabad, University Town, City Centre, and all major areas.</p>
+            <div class="cd-tags"><span class="tag">City Rides</span></div>
+            <a href="booking.html" class="btn-primary" style="display:block;text-align:center;padding:10px">Book in Peshawar</a>
+          </div>
+        </div>
+
+        <div class="city-detail-card" data-type="city">
+          <div class="cd-head quetta-bg"><div class="cd-emoji">🌄</div></div>
+          <div class="cd-body">
+            <div class="cd-top"><h3>Quetta</h3><span class="cbadge">Active</span></div>
+            <p>Jinnah Town, Satellite Town, Brewery Road, and all main areas.</p>
+            <div class="cd-tags"><span class="tag">City Rides</span></div>
+            <a href="booking.html" class="btn-primary" style="display:block;text-align:center;padding:10px">Book in Quetta</a>
+          </div>
+        </div>
+
+        <div class="city-detail-card" data-type="city intercity">
+          <div class="cd-head multan-bg"><div class="cd-emoji">🏙️</div></div>
+          <div class="cd-body">
+            <div class="cd-top"><h3>Multan</h3><span class="cbadge">Active</span></div>
+            <p>Gulgasht, New Multan, Shah Rukn-e-Alam, and all areas covered.</p>
+            <div class="cd-tags"><span class="tag">City Rides</span><span class="tag">Intercity</span></div>
+            <div class="cd-routes">
+              <b>Intercity Routes:</b>
+              <span>Multan → Lahore</span>
+              <span>Multan → Bahawalpur</span>
+            </div>
+            <a href="booking.html" class="btn-primary" style="display:block;text-align:center;padding:10px">Book in Multan</a>
+          </div>
+        </div>
+
+        <div class="city-detail-card" data-type="city">
+          <div class="cd-head fsd-bg"><div class="cd-emoji">🏭</div></div>
+          <div class="cd-body">
+            <div class="cd-top"><h3>Faisalabad</h3><span class="cbadge">Active</span></div>
+            <p>D-Ground, Susan Road, Peoples Colony, and all major areas.</p>
+            <div class="cd-tags"><span class="tag">City Rides</span></div>
+            <a href="booking.html" class="btn-primary" style="display:block;text-align:center;padding:10px">Book in Faisalabad</a>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- INTERCITY FAQ -->
+      <div class="intercity-info">
+        <h2>How Intercity Works</h2>
+        <div class="faq-grid">
+          <div class="faq"><h4>🚗 Can I book a ride from Lahore to Islamabad?</h4><p>Yes! Select "Intercity" ride type, set your pickup in Lahore and destination in Islamabad. The app finds drivers making that trip.</p></div>
+          <div class="faq"><h4>💰 How is intercity price set?</h4><p>You suggest a price. The app shows a guide based on distance. Drivers who can make the trip accept or counter-offer.</p></div>
+          <div class="faq"><h4>🕐 How early should I book?</h4><p>For intercity, book at least 2–3 hours in advance. You can also schedule for tomorrow.</p></div>
+          <div class="faq"><h4>🧳 How many bags can I bring?</h4><p>Mention luggage needs in your ride request. Drivers with enough space will respond.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="fcopy">© 2024 RidePK — Made for Pakistan 🇵🇰</div>
+  </footer>
+
+  <script>
+    function filterCities(type, btn) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.city-detail-card').forEach(c => {
+        c.style.display = (type === 'all' || c.dataset.type.includes(type)) ? 'block' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>

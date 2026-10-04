@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Driver Login — RidePK</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    /* ── Logo ── */
+    .logo {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: -1px;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .logo span { color: #ff6b00; }
+    .logo-sub {
+      color: #888;
+      font-size: 0.82rem;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #1a1a2e;
+      border: 1px solid #2a2a45;
+      border-radius: 16px;
+      padding: 36px 32px 32px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 28px 20px 24px; }
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .card-sub {
+      font-size: 0.83rem;
+      color: #888;
+      margin-bottom: 26px;
+    }
+
+    /* ── Error box ── */
+    #error-box {
+      display: none;
+      background: #2d0e0e;
+      border: 1px solid #c0392b;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+    }
+    #error-box .err-title {
+      color: #ff6b6b;
+      font-weight: 700;
+      font-size: 0.88rem;
+      margin-bottom: 3px;
+    }
+    #error-box .err-msg {
+      color: #e07070;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    /* ── Fields ── */
+    .field { margin-bottom: 18px; }
+    label {
+      display: block;
+      color: #bbb;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    input[type="tel"],
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      background: #0f0f1a;
+      border: 1.5px solid #2a2a45;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.95rem;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="tel"]:focus,
+    input[type="password"]:focus,
+    input[type="text"]:focus { border-color: #ff6b00; }
+    input::placeholder { color: #444; }
+
+    /* ── Password eye toggle ── */
+    .pwd-wrap { position: relative; }
+    .pwd-wrap input { padding-right: 44px; }
+    .eye-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.1rem;
+      color: #666;
+      padding: 0;
+      line-height: 1;
+    }
+    .eye-btn:hover { color: #aaa; }
+
+    /* ── Role toggle ── */
+    .role-hint {
+      background: #111128;
+      border: 1px solid #2a2a45;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .role-hint strong { color: #ff6b00; }
+
+    /* ── Status info ── */
+    #status-info {
+      display: none;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      font-size: 0.83rem;
+      line-height: 1.5;
+    }
+    #status-info.pending {
+      background: #1a1200;
+      border: 1px solid #f59e0b44;
+      color: #f59e0b;
+    }
+    #status-info.rejected {
+      background: #1a0808;
+      border: 1px solid #ef444444;
+      color: #f87171;
+    }
+    #status-info.suspended {
+      background: #100a1a;
+      border: 1px solid #a855f744;
+      color: #c084fc;
+    }
+
+    /* ── Submit ── */
+    .btn-submit {
+      width: 100%;
+      background: #ff6b00;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      margin-top: 4px;
+    }
+    .btn-submit:hover:not(:disabled) { background: #e05a00; }
+    .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Forgot password ── */
+    .forgot-link {
+      display: block;
+      text-align: center;
+      margin-top: 14px;
+      font-size: 0.82rem;
+      color: #ff6b00;
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+      background: none;
+      border: none;
+      width: 100%;
+    }
+    .forgot-link:hover { text-decoration: underline; }
+
+    #forgot-wrap {
+      display: none;
+      margin-top: 16px;
+      padding: 16px;
+      background: #111128;
+      border-radius: 10px;
+      border: 1px solid #2a2a45;
+    }
+    #forgot-wrap .fw-label {
+      color: #bbb;
+      font-size: 0.85rem;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    #forgot-phone {
+      width: 100%;
+      background: #0f0f1a;
+      border: 1.5px solid #2a2a45;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.92rem;
+      padding: 10px 12px;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    #forgot-phone:focus { border-color: #ff6b00; }
+    #forgot-btn {
+      background: #ff6b00;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+    }
+    #forgot-btn:hover:not(:disabled) { background: #e05a00; }
+    #forgot-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    #forgot-msg {
+      display: none;
+      margin-top: 10px;
+      font-size: 0.85rem;
+    }
+
+    /* ── Footer links ── */
+    .footer-links {
+      margin-top: 22px;
+      text-align: center;
+      font-size: 0.82rem;
+      color: #666;
+    }
+    .footer-links a {
+      color: #ff6b00;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .footer-links a:hover { text-decoration: underline; }
+    .footer-links .sep { margin: 0 8px; color: #333; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #22c55e;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 100px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 9999;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    #toast.error { background: #ef4444; }
+  </style>
+</head>
+<body>
+
+  <div class="logo">🚗 Ride<span>PK</span></div>
+  <div class="logo-sub">Mirpur AJK — Pakistan</div>
+
+  <div class="card">
+    <div class="card-title">Driver Login</div>
+    <div class="card-sub">Enter your registered phone number and password</div>
+
+    <!-- Error box -->
+    <div id="error-box">
+      <div class="err-title" id="err-title">Login Failed</div>
+      <div class="err-msg"  id="err-msg"></div>
+    </div>
+
+    <!-- Status messages -->
+    <div id="status-info"></div>
+
+    <form id="login-form" novalidate>
+      <div class="field">
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" name="phone"
+               placeholder="e.g. 03001234567" maxlength="15" required />
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="pwd-wrap">
+          <input type="password" id="password" name="password"
+                 placeholder="Enter your password" required />
+          <button type="button" class="eye-btn" id="eye-pass"
+                  onclick="togglePwd('password','eye-pass')" aria-label="Toggle password visibility">👁</button>
+        </div>
+      </div>
+
+      <div class="role-hint">
+        Logging in as <strong>Driver</strong>.
+        Not a driver? <a href="login.html" style="color:#ff6b00;text-decoration:none;font-weight:600">Passenger login →</a>
+      </div>
+
+      <button type="submit" class="btn-submit" id="submit-btn">
+        Login as Driver
+      </button>
+    </form>
+
+    <button class="forgot-link" onclick="forgotPassword()">Forgot Password?</button>
+
+    <div id="forgot-wrap">
+      <div class="fw-label">Enter your registered phone number:</div>
+      <input type="tel" id="forgot-phone" placeholder="e.g. 03001234567" />
+      <button id="forgot-btn" onclick="sendForgotRequest()">Send Reset Link</button>
+      <div id="forgot-msg"></div>
+    </div>
+
+    <div class="footer-links">
+      <a href="driver-register.html">Register as Driver</a>
+      <span class="sep">·</span>
+      <a href="index.html">← Home</a>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    var API = 'http://localhost:5000/api';
+
+    function togglePwd(inputId, btnId) {
+      var inp = document.getElementById(inputId);
+      var btn = document.getElementById(btnId);
+      if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+      else { inp.type = 'password'; btn.textContent = '👁'; }
+    }
+
+    function forgotPassword() {
+      document.getElementById('forgot-wrap').style.display = 'block';
+    }
+
+    function sendForgotRequest() {
+      var phone = document.getElementById('forgot-phone').value.trim();
+      if (!phone) { showForgotMsg('Please enter your phone number.', true); return; }
+      var btn = document.getElementById('forgot-btn');
+      btn.disabled = true; btn.textContent = 'Sending...';
+      fetch('http://localhost:5000/api/auth/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone, role: 'driver' })
+      }).then(function(r) { return r.json(); })
+      .then(function(data) {
+        btn.disabled = false; btn.textContent = 'Send Reset Link';
+        if (data.success) {
+          showForgotMsg('✅ ' + (data.message || 'Reset link sent to your email.'), false);
+        } else {
+          showForgotMsg('❌ ' + (data.message || 'Could not send reset link.'), true);
+        }
+      }).catch(function() {
+        btn.disabled = false; btn.textContent = 'Send Reset Link';
+        showForgotMsg('❌ Cannot connect to server.', true);
+      });
+    }
+
+    function showForgotMsg(msg, isError) {
+      var el = document.getElementById('forgot-msg');
+      el.textContent = msg;
+      el.style.color = isError ? '#ef4444' : '#22c55e';
+      el.style.display = 'block';
+    }
+
+    function showError(title, msg) {
+      var box = document.getElementById('error-box');
+      document.getElementById('err-title').textContent = title;
+      document.getElementById('err-msg').textContent   = msg;
+      box.style.display = 'block';
+      var si = document.getElementById('status-info');
+      si.style.display = 'none';
+    }
+
+    function showStatus(type, msg) {
+      var si = document.getElementById('status-info');
+      si.className = type;
+      si.textContent = msg;
+      si.style.display = 'block';
+      document.getElementById('error-box').style.display = 'none';
+    }
+
+    function hideError() {
+      document.getElementById('error-box').style.display = 'none';
+      document.getElementById('status-info').style.display = 'none';
+    }
+
+    function showToast(msg, isError) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className   = isError ? 'error' : '';
+      t.classList.add('show');
+      setTimeout(function() { t.classList.remove('show'); }, 3200);
+    }
+
+    function setLoading(loading) {
+      var btn = document.getElementById('submit-btn');
+      if (loading) {
+        btn.disabled     = true;
+        btn.innerHTML    = '<span class="spinner"></span>Logging in…';
+      } else {
+        btn.disabled     = false;
+        btn.textContent  = 'Login as Driver';
+      }
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      hideError();
+
+      var phone    = document.getElementById('phone').value.trim();
+      var password = document.getElementById('password').value;
+
+      if (!phone) { showError('Phone required', 'Please enter your phone number.'); return; }
+      if (!password) { showError('Password required', 'Please enter your password.'); return; }
+
+      setLoading(true);
+
+      try {
+        var res = await fetch(API + '/drivers/login', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ phone: phone, password: password })
+        });
+
+        var data = await res.json();
+
+        if (res.ok && data.success) {
+          localStorage.setItem('driverToken', data.token);
+          localStorage.setItem('driverInfo', JSON.stringify(data.driver));
+
+          showToast('✅ Login successful! Redirecting…', false);
+
+          setTimeout(function() {
+            window.location.href = 'driver-dashboard.html';
+          }, 1200);
+
+        } else {
+          setLoading(false);
+
+          if (res.status === 403) {
+            var msg = data.message || '';
+            if (msg.toLowerCase().includes('pending')) {
+              showStatus('pending',
+                '⏳ Your application is still under review. ' +
+                'We will contact you within 24–48 hours once approved.');
+            } else if (msg.toLowerCase().includes('reject')) {
+              showStatus('rejected',
+                '❌ Your driver application was not approved. ' +
+                'Please contact support for more information.');
+            } else if (msg.toLowerCase().includes('suspend')) {
+              showStatus('suspended',
+                '🚫 Your account has been suspended. ' +
+                'Please contact support.');
+            } else {
+              showError('Access Denied', msg || 'Your account cannot log in right now.');
+            }
+          } else if (res.status === 401) {
+            showError('Login Failed', data.message || 'Wrong phone number or password.');
+          } else {
+            showError('Login Failed', data.message || 'Something went wrong. Please try again.');
+          }
+        }
+
+      } catch (err) {
+        setLoading(false);
+        showError(
+          'Cannot connect to server',
+          'Make sure the server is running (node server.js in backend folder) and try again.'
+        );
+      }
+    });
+
+    // Clear error when user types
+    ['phone', 'password'].forEach(function(id) {
+      document.getElementById(id).addEventListener('input', hideError);
+    });
+
+    // If already logged in, redirect
+    if (localStorage.getItem('driverToken')) {
+      window.location.href = 'driver-dashboard.html';
+    }
+  </script>
+</body>
+</html>

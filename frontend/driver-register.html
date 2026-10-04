@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drive With Us — RidePK</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/driver.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Toast notification ── */
+    #toast-notify {
+      display: none;
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a2e;
+      color: #fff;
+      padding: 16px 24px;
+      border-radius: 12px;
+      border-left: 4px solid #ff6b00;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      z-index: 9999;
+      max-width: 480px;
+      width: 90%;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      animation: slideUp 0.3s ease;
+    }
+    #toast-notify .toast-title { font-weight: 700; color: #ff6b00; margin-bottom: 4px; font-size: 1rem; }
+    #toast-notify .toast-close {
+      position: absolute;
+      top: 8px; right: 12px;
+      background: none; border: none; color: #888;
+      font-size: 1.2rem; cursor: pointer; line-height: 1;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    /* ── Required badge on upload boxes ── */
+    .upload-box.required-missing {
+      border: 2px solid #ef4444 !important;
+      box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+    }
+    .upload-box .req-badge {
+      display: inline-block;
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 1px 5px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .upload-box .req-badge.optional {
+      background: #6b7280;
+    }
+    .doc-error {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #b91c1c;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .doc-error.visible { display: block; }
+  </style>
+</head>
+<body class="dpage">
+
+  <!-- Toast Notification -->
+  <div id="toast-notify">
+    <button class="toast-close" onclick="document.getElementById('toast-notify').style.display='none'">×</button>
+    <div class="toast-title">✅ Application Submitted!</div>
+    <div id="toast-msg">Your application has been received. We'll review and contact you within 24–48 hours.</div>
+  </div>
+
+  <nav class="navbar scrolled">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">🚗 Ride<span>PK</span></a>
+      <ul class="nav-links">
+        <li><a href="login.html" class="btn-nav-outline">Login</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="dpage-wrap">
+
+    <!-- LEFT INFO -->
+    <div class="dinfo">
+      <h1>Drive With<br/><span class="orange">RidePK</span></h1>
+      <p>Join thousands of drivers earning good money on their own schedule.</p>
+      <div class="dperks">
+        <div class="dperk">💰 <div><b>Earn Rs. 3,000–8,000/day</b><small>Top drivers in big cities</small></div></div>
+        <div class="dperk">⏰ <div><b>Work Your Own Hours</b><small>Go online/offline anytime</small></div></div>
+        <div class="dperk">📱 <div><b>Weekly Payments</b><small>Bank, EasyPaisa, JazzCash</small></div></div>
+        <div class="dperk">🛡️ <div><b>Insurance Coverage</b><small>While on a trip</small></div></div>
+      </div>
+      <div class="drequire">
+        <h4>Requirements</h4>
+        <ul>
+          <li>✅ Valid CNIC (18+ years old)</li>
+          <li>✅ Valid driving license</li>
+          <li>✅ Vehicle 2010 or newer</li>
+          <li>✅ Smartphone (Android 8+ or iPhone)</li>
+          <li>✅ Clean criminal record</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- RIGHT FORM -->
+    <div class="dform-wrap">
+      <div class="dform-card">
+        <h2>Driver Registration</h2>
+        <p class="form-sub">Fill this form. Approval takes 24–48 hours.</p>
+
+        <!-- FORM STEPS -->
+        <div class="fsteps">
+          <div class="fstep active" id="fs1">Personal</div>
+          <div class="fstep-div"></div>
+          <div class="fstep" id="fs2">Vehicle</div>
+          <div class="fstep-div"></div>
+          <div class="fstep" id="fs3">Documents</div>
+        </div>
+
+        <form id="driverForm">
+
+          <!-- PERSONAL INFO -->
+          <div class="fsection" id="fsec1">
+            <div class="two-col">
+              <div class="fgroup">
+                <label>Full Name *</label>
+                <input type="text" id="fullname" placeholder="Muhammad Ahmed" required />
+              </div>
+              <div class="fgroup">
+                <label>Phone Number *</label>
+                <input type="tel" id="phone" placeholder="03XX-XXXXXXX" required />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="fgroup">
+                <label>Email Address</label>
+                <input type="email" id="email" placeholder="ahmed@email.com" />
+              </div>
+              <div class="fgroup">
+                <label>CNIC Number *</label>
+                <input type="text" id="cnic" placeholder="XXXXX-XXXXXXX-X" required />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="fgroup">
+                <label>City *</label>
+                <select id="city" required>
+                  <option value="">Select city...</option>
+                  <option>Mirpur</option>
+                  <option>Kotli</option>
+                  <option>Bhimber</option>
+                  <option>Muzaffarabad</option>
+                  <option>Rawalpindi</option>
+                  <option>Islamabad</option>
+                  <option>Lahore</option>
+                  <option>Karachi</option>
+                  <option>Peshawar</option>
+                  <option>Multan</option>
+                  <option>Faisalabad</option>
+                  <option>Quetta</option>
+                </select>
+              </div>
+              <div class="fgroup">
+                <label>Service Type *</label>
+                <select id="service" required>
+                  <option value="">Select...</option>
+                  <option>City Rides Only</option>
+                  <option>Intercity Only</option>
+                  <option>Both City &amp; Intercity</option>
+                </select>
+              </div>
+            </div>
+            <div class="fgroup">
+              <label>Password *</label>
+              <input type="password" id="password" placeholder="Create a strong password" required />
+            </div>
+            <button type="button" class="btn-next" onclick="goFStep(2)">Next: Vehicle Info →</button>
+          </div>
+
+          <!-- VEHICLE INFO -->
+          <div class="fsection hidden" id="fsec2">
+
+            <!-- Vehicle Type (must be first — drives the brand dropdown) -->
+            <div class="fgroup">
+              <label>Vehicle Type *</label>
+              <div class="vtype-grid">
+                <div class="vtype sel" onclick="pickVtype(this,'car')">🚗 Car</div>
+                <div class="vtype" onclick="pickVtype(this,'suv')">🚙 SUV</div>
+                <div class="vtype" onclick="pickVtype(this,'van')">🚐 Van</div>
+                <div class="vtype" onclick="pickVtype(this,'motorbike')">🏍️ Motorbike</div>
+                <div class="vtype" onclick="pickVtype(this,'rickshaw')">🛺 Rickshaw</div>
+              </div>
+            </div>
+
+            <div class="two-col">
+              <div class="fgroup">
+                <label>Vehicle Make / Brand *</label>
+                <select id="vmake" required>
+                  <!-- Options filled dynamically by pickVtype() -->
+                  <option value="">Select vehicle type first</option>
+                </select>
+              </div>
+              <div class="fgroup">
+                <label>Vehicle Model *</label>
+                <input type="text" id="vmodel" placeholder="e.g. Corolla / CD70 / Loader" required />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="fgroup">
+                <label>Year *</label>
+                <input type="number" id="vyear" placeholder="2018" min="2000" max="2025" required />
+              </div>
+              <div class="fgroup">
+                <label>Color *</label>
+                <input type="text" id="vcolor" placeholder="White / Silver / Black..." required />
+              </div>
+            </div>
+            <div class="fgroup">
+              <label>License Plate Number *</label>
+              <input type="text" id="vplate" placeholder="MRP-1234 or ABC-1234" required />
+            </div>
+
+            <div class="two-btns">
+              <button type="button" class="btn-back" onclick="goFStep(1)">← Back</button>
+              <button type="button" class="btn-next" onclick="goFStep(3)">Next: Documents →</button>
+            </div>
+          </div>
+
+          <!-- DOCUMENTS -->
+          <div class="fsection hidden" id="fsec3">
+            <p class="doc-note">📸 Upload clear photos. JPG/PNG, max 5MB each. Items marked <span style="color:#ef4444;font-weight:700">Required</span> must be uploaded.</p>
+
+            <!-- Error banner shown when required docs are missing on submit -->
+            <div class="doc-error" id="doc-error">
+              ⚠️ Please upload all required documents before submitting.
+            </div>
+
+            <div class="upload-grid">
+              <!-- CNIC Front — Required -->
+              <div class="upload-box" id="box-cnic-front" onclick="triggerUpload('cnic-front')">
+                <input type="file" id="cnic-front" name="cnic-front" accept="image/*,.pdf" hidden onchange="previewFile(this,'box-cnic-front')" />
+                <div class="upload-icon">🪪</div>
+                <b>CNIC Front <span class="req-badge">Required</span></b>
+                <small id="lbl-cnic-front">Tap to upload</small>
+              </div>
+
+              <!-- CNIC Back — Required -->
+              <div class="upload-box" id="box-cnic-back" onclick="triggerUpload('cnic-back')">
+                <input type="file" id="cnic-back" name="cnic-back" accept="image/*,.pdf" hidden onchange="previewFile(this,'box-cnic-back')" />
+                <div class="upload-icon">🪪</div>
+                <b>CNIC Back <span class="req-badge">Required</span></b>
+                <small id="lbl-cnic-back">Tap to upload</small>
+              </div>
+
+              <!-- Driving License — Required -->
+              <div class="upload-box" id="box-license" onclick="triggerUpload('license')">
+                <input type="file" id="license" name="license" accept="image/*,.pdf" hidden onchange="previewFile(this,'box-license')" />
+                <div class="upload-icon">🪪</div>
+                <b>Driving License <span class="req-badge">Required</span></b>
+                <small id="lbl-license">Tap to upload</small>
+              </div>
+
+              <!-- Driver Photo — Required -->
+              <div class="upload-box" id="box-photo" onclick="triggerUpload('photo')">
+                <input type="file" id="photo" name="photo" accept="image/*" hidden onchange="previewFile(this,'box-photo')" />
+                <div class="upload-icon">📷</div>
+                <b>Your Photo <span class="req-badge">Required</span></b>
+                <small id="lbl-photo">Clear face photo</small>
+              </div>
+
+              <!-- Vehicle Registration — Optional -->
+              <div class="upload-box" id="box-vehicle-reg" onclick="triggerUpload('vehicle-reg')">
+                <input type="file" id="vehicle-reg" name="vehicle-reg" accept="image/*,.pdf" hidden onchange="previewFile(this,'box-vehicle-reg')" />
+                <div class="upload-icon">📄</div>
+                <b>Vehicle Reg <span class="req-badge optional">Optional</span></b>
+                <small id="lbl-vehicle-reg">Tap to upload</small>
+              </div>
+
+              <!-- Vehicle Photo — Optional -->
+              <div class="upload-box" id="box-vehicle-photo" onclick="triggerUpload('vehicle-photo')">
+                <input type="file" id="vehicle-photo" name="vehicle-photo" accept="image/*" hidden onchange="previewFile(this,'box-vehicle-photo')" />
+                <div class="upload-icon">🚗</div>
+                <b>Vehicle Photo <span class="req-badge optional">Optional</span></b>
+                <small id="lbl-vehicle-photo">Front view</small>
+              </div>
+            </div>
+
+            <div class="fgroup" style="margin-top:16px">
+              <label>
+                <input type="checkbox" id="agree" required />
+                I agree to the <a href="#" class="link">Terms &amp; Conditions</a> and <a href="#" class="link">Driver Policy</a>
+              </label>
+            </div>
+
+            <div class="two-btns">
+              <button type="button" class="btn-back" onclick="goFStep(2)">← Back</button>
+              <button type="submit" class="btn-confirm" id="submit-btn">Submit Application ✓</button>
+            </div>
+          </div>
+        </form>
+
+        <!-- SUCCESS MESSAGE (hidden initially) -->
+        <div id="success-msg" class="hidden" style="text-align:center;padding:40px 20px;">
+          <div style="font-size:4rem">✅</div>
+          <h3>Application Submitted!</h3>
+          <p>We'll review your documents and contact you within 24–48 hours on your phone number.</p>
+          <p style="color:#ff6b00;font-size:0.9rem">📧 A confirmation email has been sent.<br/>Please check your <strong>Spam/Junk folder</strong> if you don't see it.</p>
+          <a href="index.html" class="btn-next" style="display:inline-block;margin-top:16px;">Back to Home</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var currentFStep = 1;
+    var selectedVtype = 'car';
+
+    // Required document field IDs
+    var REQUIRED_DOCS = ['cnic-front', 'cnic-back', 'license', 'photo'];
+
+    // ── Vehicle brands by type ──
+    var VEHICLE_BRANDS = {
+      car: [
+        'Suzuki', 'Toyota', 'Honda', 'Kia', 'Hyundai',
+        'Daihatsu', 'Changan', 'MG', 'Proton', 'Other'
+      ],
+      suv: [
+        'Toyota', 'Honda', 'Kia', 'Hyundai', 'MG',
+        'Changan', 'Suzuki', 'Isuzu', 'Other'
+      ],
+      van: [
+        'Toyota', 'Suzuki', 'Nissan', 'Hyundai',
+        'Daihatsu', 'KMC', 'Other'
+      ],
+      motorbike: [
+        'Honda', 'Yamaha', 'Suzuki', 'Zxmco', 'United',
+        'Road Prince', 'Super Power', 'Ravi', 'Unique', 'Other'
+      ],
+      rickshaw: [
+        'Sazgar', 'Ravi', 'United', 'New Asia', 'Qingqi',
+        'Loader (3-Wheeler)', 'Other'
+      ]
+    };
+
+    // Model placeholder hints by type
+    var MODEL_PLACEHOLDER = {
+      car:      'Alto / Corolla / Civic / Cultus...',
+      suv:      'Fortuner / Sportage / Tucson / C5...',
+      van:      'Hiace / Bolan / Shehzore...',
+      motorbike:'CD70 / CG125 / YBR125 / GS150...',
+      rickshaw: 'Loader Rickshaw / Auto Rickshaw...'
+    };
+
+    // ── Pick vehicle type — updates brand dropdown ──
+    function pickVtype(el, type) {
+      document.querySelectorAll('.vtype').forEach(function(v) { v.classList.remove('sel'); });
+      el.classList.add('sel');
+      selectedVtype = type;
+
+      // Update brand dropdown
+      var makeSelect = document.getElementById('vmake');
+      var brands = VEHICLE_BRANDS[type] || VEHICLE_BRANDS['car'];
+      makeSelect.innerHTML = '<option value="">Select brand...</option>';
+      brands.forEach(function(b) {
+        var opt = document.createElement('option');
+        opt.value = b;
+        opt.textContent = b;
+        makeSelect.appendChild(opt);
+      });
+
+      // Update model placeholder
+      var modelInput = document.getElementById('vmodel');
+      modelInput.placeholder = MODEL_PLACEHOLDER[type] || 'Enter model name...';
+    }
+
+    // Initialize with car brands on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      pickVtype(document.querySelector('.vtype.sel'), 'car');
+    });
+
+    // ── Navigate steps ──
+    function goFStep(n) {
+      if (n > currentFStep && !validateFStep(currentFStep)) return;
+
+      ['fsec1','fsec2','fsec3'].forEach(function(id) {
+        document.getElementById(id).classList.add('hidden');
+      });
+      document.getElementById('fsec' + n).classList.remove('hidden');
+      currentFStep = n;
+
+      ['fs1','fs2','fs3'].forEach(function(id, i) {
+        var el = document.getElementById(id);
+        el.classList.remove('active', 'done');
+        if (i + 1 < n) el.classList.add('done');
+        if (i + 1 === n) el.classList.add('active');
+      });
+
+      document.querySelector('.dform-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ── Validate each step ──
+    function validateFStep(step) {
+      if (step === 1) {
+        var name    = document.getElementById('fullname').value.trim();
+        var phone   = document.getElementById('phone').value.trim();
+        var cnic    = document.getElementById('cnic').value.trim();
+        var city    = document.getElementById('city').value;
+        var service = document.getElementById('service').value;
+        var pass    = document.getElementById('password').value;
+
+        if (!name)                        { alert('Please enter your full name.'); return false; }
+        if (!phone || phone.length < 10)  { alert('Please enter a valid phone number.'); return false; }
+        if (!cnic || cnic.length < 13)    { alert('Please enter a valid CNIC number.'); return false; }
+        if (!city)                        { alert('Please select your city.'); return false; }
+        if (!service)                     { alert('Please select your service type.'); return false; }
+        if (!pass || pass.length < 6)     { alert('Password must be at least 6 characters.'); return false; }
+      }
+      if (step === 2) {
+        var make  = document.getElementById('vmake').value;
+        var model = document.getElementById('vmodel').value.trim();
+        var year  = document.getElementById('vyear').value;
+        var plate = document.getElementById('vplate').value.trim();
+        var color = document.getElementById('vcolor').value.trim();
+
+        if (!make)                          { alert('Please select vehicle brand/make.'); return false; }
+        if (!model)                         { alert('Please enter vehicle model.'); return false; }
+        if (!year || parseInt(year) < 2000) { alert('Vehicle must be year 2000 or newer.'); return false; }
+        if (!plate)                         { alert('Please enter license plate number.'); return false; }
+        if (!color)                         { alert('Please enter vehicle color.'); return false; }
+      }
+      return true;
+    }
+
+    // ── Validate required documents before submission ──
+    function validateDocuments() {
+      var missing = [];
+      var anyMissing = false;
+
+      // Check each required document
+      var labels = {
+        'cnic-front': 'CNIC Front',
+        'cnic-back':  'CNIC Back',
+        'license':    'Driving License',
+        'photo':      'Your Photo'
+      };
+
+      REQUIRED_DOCS.forEach(function(docId) {
+        var input = document.getElementById(docId);
+        var box   = document.getElementById('box-' + docId);
+        if (!input || !input.files || !input.files[0]) {
+          missing.push(labels[docId] || docId);
+          anyMissing = true;
+          if (box) box.classList.add('required-missing');
+        } else {
+          if (box) box.classList.remove('required-missing');
+        }
+      });
+
+      var errorEl = document.getElementById('doc-error');
+      if (anyMissing) {
+        errorEl.innerHTML = '⚠️ Please upload the following required documents: <strong>' + missing.join(', ') + '</strong>';
+        errorEl.classList.add('visible');
+        return false;
+      }
+      errorEl.classList.remove('visible');
+      return true;
+    }
+
+    // ── File upload ──
+    function triggerUpload(id) { document.getElementById(id).click(); }
+
+    function previewFile(input, boxId) {
+      var box = document.getElementById(boxId);
+      if (input.files && input.files[0]) {
+        var fname = input.files[0].name;
+        box.classList.add('uploaded');
+        box.classList.remove('required-missing');
+        box.querySelector('.upload-icon').textContent = '✅';
+        var lbl = document.getElementById('lbl-' + input.id);
+        if (lbl) lbl.textContent = fname.length > 20 ? fname.slice(0, 18) + '...' : fname;
+      }
+    }
+
+    // ── Show toast ──
+    function showToast(msg) {
+      var toast = document.getElementById('toast-notify');
+      document.getElementById('toast-msg').innerHTML = msg;
+      toast.style.display = 'block';
+      // Auto-hide after 10 seconds
+      setTimeout(function() { toast.style.display = 'none'; }, 10000);
+    }
+
+    // ── Submit form — now uses FormData (multipart) to include file uploads ──
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('driverForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        if (!document.getElementById('agree').checked) {
+          alert('Please agree to the Terms & Conditions.');
+          return;
+        }
+
+        // Client-side required document check
+        if (!validateDocuments()) {
+          // Scroll to doc error banner
+          var errEl = document.getElementById('doc-error');
+          if (errEl) errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+
+        var btn = document.getElementById('submit-btn');
+        btn.disabled    = true;
+        btn.textContent = 'Submitting...';
+
+        // Build FormData — this sends the actual files to the backend
+        var fd = new FormData();
+        fd.append('fullName',    document.getElementById('fullname').value.trim());
+        fd.append('phone',       document.getElementById('phone').value.trim());
+        fd.append('email',       document.getElementById('email').value.trim());
+        fd.append('cnic',        document.getElementById('cnic').value.trim());
+        fd.append('city',        document.getElementById('city').value);
+        fd.append('serviceType', document.getElementById('service').value);
+        fd.append('password',    document.getElementById('password').value);
+
+        // Vehicle as JSON string (multipart doesn't support nested objects directly)
+        var vehicleObj = {
+          make:  document.getElementById('vmake').value,
+          model: document.getElementById('vmodel').value.trim(),
+          year:  parseInt(document.getElementById('vyear').value) || 0,
+          color: document.getElementById('vcolor').value.trim(),
+          plate: document.getElementById('vplate').value.trim(),
+          type:  selectedVtype
+        };
+        fd.append('vehicle', JSON.stringify(vehicleObj));
+
+        // Append all file uploads
+        var fileIds = ['cnic-front', 'cnic-back', 'license', 'vehicle-reg', 'photo', 'vehicle-photo'];
+        fileIds.forEach(function(fid) {
+          var input = document.getElementById(fid);
+          if (input && input.files && input.files[0]) {
+            fd.append(fid, input.files[0]);
+          }
+        });
+
+        var emailVal = document.getElementById('email').value.trim();
+
+        fetch((window.RIDEPK_API_BASE || 'http://localhost:5000') + '/api/drivers/register', {
+          method: 'POST',
+          // Do NOT set Content-Type header — browser sets it with boundary automatically for FormData
+          body: fd
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success || data.driverId) {
+            onSubmitSuccess(emailVal);
+          } else {
+            alert(data.message || 'Registration failed. Please try again.');
+            btn.disabled    = false;
+            btn.textContent = 'Submit Application ✓';
+          }
+        })
+        .catch(function(err) {
+          console.error('Registration error:', err);
+          alert('Could not connect to the server. Please check your connection and try again.');
+          btn.disabled    = false;
+          btn.textContent = 'Submit Application ✓';
+        });
+      });
+    });
+
+    function onSubmitSuccess(email) {
+      // Hide form, show success card
+      document.getElementById('driverForm').classList.add('hidden');
+      document.getElementById('success-msg').classList.remove('hidden');
+
+      // Show toast with spam advice
+      var emailMsg = email
+        ? 'A confirmation email has been sent to <strong>' + email + '</strong>.<br/>📌 Please check your <strong>Spam/Junk folder</strong> if you don\'t see it within a few minutes.'
+        : 'Your application has been received. We\'ll contact you on your phone within 24–48 hours.';
+
+      showToast(emailMsg);
+    }
+
+    // ── CNIC auto-format: 12345-1234567-1 ──
+    document.addEventListener('DOMContentLoaded', function() {
+      var cnicInput = document.getElementById('cnic');
+      if (cnicInput) {
+        cnicInput.addEventListener('input', function(e) {
+          var v = e.target.value.replace(/\D/g, '');
+          if (v.length > 5 && v.length <= 12) v = v.slice(0,5) + '-' + v.slice(5);
+          if (v.length > 13) v = v.slice(0,13) + '-' + v.slice(13,14);
+          e.target.value = v.slice(0, 15);
+        });
+      }
+
+      // Phone auto-format: 0300-1234567
+      var phoneInput = document.getElementById('phone');
+      if (phoneInput) {
+        phoneInput.addEventListener('input', function(e) {
+          var v = e.target.value.replace(/\D/g, '');
+          if (v.length > 4) v = v.slice(0,4) + '-' + v.slice(4);
+          e.target.value = v.slice(0, 12);
+        });
+      }
+    });
+  </script>
+</body>
+</html>

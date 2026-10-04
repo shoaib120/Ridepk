@@ -1,0 +1,40 @@
+/* ===== AUTH PAGES ===== */
+body.auth-page {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 24px;
+  background: var(--bg);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(255,107,0,0.1) 0%, transparent 60%);
+}
+.auth-wrap { width: 100%; max-width: 440px; }
+.auth-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 18px; padding: 36px;
+  box-shadow: var(--shadow);
+}
+.auth-tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+.atab {
+  flex: 1; padding: 9px; border-radius: 9px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--muted); font-size: 0.88rem; font-weight: 500;
+  transition: all 0.2s;
+}
+.atab.active { background: var(--orange); color: white; border-color: var(--orange); }
+.auth-card h2 { font-family: 'Syne', sans-serif; font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; }
+.auth-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 22px; }
+.pw-row { display: flex; gap: 8px; }
+.pw-row input { flex: 1; }
+.pw-eye {
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 0 12px; border-radius: 9px; font-size: 1rem;
+}
+.auth-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.82rem; margin-bottom: 14px;
+}
+.auth-row label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.auth-error {
+  background: rgba(255,50,50,0.1); border: 1px solid rgba(255,50,50,0.25);
+  color: #ff6060; padding: 10px 14px; border-radius: 8px;
+  font-size: 0.85rem; margin-top: 12px;
+}
+.auth-switch { text-align: center; font-size: 0.85rem; color: var(--muted); margin-top: 18px; }
