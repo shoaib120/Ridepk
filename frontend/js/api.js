@@ -3,7 +3,7 @@
 //   Development: http://localhost:5000
 //   Production:  https://api.YOUR-DOMAIN.com
 
-const API_BASE = window.RIDEPK_API_BASE || 'http://localhost:5000';
+const API_BASE = window.RIDEPK_API_BASE || 'https://ridepk.onrender.com';
 
 const API = {
   get: async (path) => {
