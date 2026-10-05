@@ -445,7 +445,7 @@
 // =========================================================
 //  CONFIGURATION
 // =========================================================
-var API = 'http://localhost:5000';
+var API = 'https://ridepk.onrender.com';
 
 var PRICING = {
   motorbike: { minFare: 60,  perKm: 35, label: 'Rs 35/km' },
@@ -2395,7 +2395,7 @@ var passengerCity = '';
 function loadPassengerProfile() {
   var token = localStorage.getItem('token');
   if (!token) return;
-  fetch((window.RIDEPK_API_BASE || 'http://localhost:5000') + '/api/users/profile', {
+  fetch((window.RIDEPK_API_BASE || 'https://ridepk.onrender.com') + '/api/users/profile', {
     headers: { 'Authorization': 'Bearer ' + token }
   })
   .then(function(r) { return r.ok ? r.json() : null; })

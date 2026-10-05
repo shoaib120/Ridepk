@@ -310,7 +310,7 @@
   <div id="toast"></div>
 
   <script>
-    var API = 'http://localhost:5000/api';
+    var API = 'https://ridepk.onrender.com/api';
 
     // Redirect if already logged in
     if (localStorage.getItem('token')) {
@@ -333,7 +333,7 @@
       if (!phone) { showForgotMsg('Please enter your phone number.', true); return; }
       var btn = document.getElementById('forgot-btn');
       btn.disabled = true; btn.textContent = 'Sending...';
-      fetch('http://localhost:5000/api/auth/forgot-password', {
+      fetch('https://ridepk.onrender.com/api/auth/forgot-password', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: phone })
       }).then(function(r) { return r.json(); })

@@ -8,7 +8,7 @@
 // 6. Request auto-expires after 4 minutes, re-sent to new online drivers
 // 7. Route follows real roads via OSRM (not straight line)
 
-const API_BASE = window.RIDEPK_API_BASE || 'http://localhost:5000';
+const API_BASE = window.RIDEPK_API_BASE || 'https://ridepk.onrender.com';
 const OSRM_URL = 'https://router.project-osrm.org/route/v1/driving';
 const RATE_PER_KM = 40;
 const MIN_PRICE   = 100;
