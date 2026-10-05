@@ -90,50 +90,94 @@ function previewFile(input) {
   }
 }
 
+// ===== VALIDATE DOCUMENTS (Step 3) =====
+function validateDocuments() {
+  const required = [
+    { id: 'cnic-front',   label: 'CNIC Front' },
+    { id: 'cnic-back',    label: 'CNIC Back' },
+    { id: 'license',      label: 'Driving License' },
+    { id: 'vehicle-reg',  label: 'Vehicle Registration' },
+    { id: 'photo',        label: 'Your Photo' }
+  ];
+
+  for (const doc of required) {
+    const input = document.getElementById(doc.id);
+    if (!input || !input.files || !input.files[0]) {
+      alert('Please upload: ' + doc.label);
+      return false;
+    }
+  }
+  return true;
+}
+
 // ===== SUBMIT FORM =====
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('driverForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Validate step 3
+    // Validate step 3 — terms
     const agree = document.getElementById('agree').checked;
     if (!agree) { alert('Please agree to the Terms & Conditions.'); return; }
 
-    // Collect all data
-    const formData = {
-      fullName: document.getElementById('fullname').value,
-      phone: document.getElementById('phone').value,
-      email: document.getElementById('email').value,
-      cnic: document.getElementById('cnic').value,
-      city: document.getElementById('city').value,
-      serviceType: document.getElementById('service').value,
-      password: document.getElementById('password').value,
-      vehicle: {
-        make: document.getElementById('vmake').value,
-        model: document.getElementById('vmodel').value,
-        year: document.getElementById('vyear').value,
-        color: document.getElementById('vcolor').value,
-        plate: document.getElementById('vplate').value,
-        type: selectedVtype
-      }
-    };
+    // Validate step 3 — required documents
+    if (!validateDocuments()) return;
 
-    // Send to backend (Step 2 will create this API)
+    // Build FormData so files are included
+    const fd = new FormData();
+    fd.append('fullName',    document.getElementById('fullname').value);
+    fd.append('phone',       document.getElementById('phone').value);
+    fd.append('email',       document.getElementById('email').value);
+    fd.append('cnic',        document.getElementById('cnic').value);
+    fd.append('city',        document.getElementById('city').value);
+    fd.append('serviceType', document.getElementById('service').value);
+    fd.append('password',    document.getElementById('password').value);
+
+    // Vehicle info as JSON string (backend parses it)
+    fd.append('vehicle', JSON.stringify({
+      make:  document.getElementById('vmake').value,
+      model: document.getElementById('vmodel').value,
+      year:  document.getElementById('vyear').value,
+      color: document.getElementById('vcolor').value,
+      plate: document.getElementById('vplate').value,
+      type:  selectedVtype
+    }));
+
+    // Attach document files
+    fd.append('cnic-front',   document.getElementById('cnic-front').files[0]);
+    fd.append('cnic-back',    document.getElementById('cnic-back').files[0]);
+    fd.append('license',      document.getElementById('license').files[0]);
+    fd.append('vehicle-reg',  document.getElementById('vehicle-reg').files[0]);
+    fd.append('photo',        document.getElementById('photo').files[0]);
+
+    // Vehicle photo is optional
+    const vehiclePhotoInput = document.getElementById('vehicle-photo');
+    if (vehiclePhotoInput && vehiclePhotoInput.files && vehiclePhotoInput.files[0]) {
+      fd.append('vehicle-photo', vehiclePhotoInput.files[0]);
+    }
+
+    // Show loading state
+    const submitBtn = document.querySelector('#driverForm button[type="submit"]');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
+
     try {
-      const res = await fetch((window.RIDEPK_API_BASE||'https://ridepk.onrender.com')+'/api/drivers/register', {
+      const res = await fetch((window.RIDEPK_API_BASE || 'https://ridepk.onrender.com') + '/api/drivers/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        // Do NOT set Content-Type — browser sets it automatically with boundary for FormData
+        body: fd
       });
+
       const data = await res.json();
-      if (data.success || data.message) {
+
+      if (res.ok && (data.success || data.message)) {
         showSuccess();
       } else {
         alert(data.message || 'Registration failed. Please try again.');
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Application'; }
       }
     } catch (err) {
-      // Backend not running yet — show success anyway for demo
-      showSuccess();
+      console.error('Registration error:', err);
+      alert('Network error. Please check your connection and try again.');
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Application'; }
     }
   });
 });

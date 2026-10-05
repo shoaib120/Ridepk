@@ -7,6 +7,10 @@ const jwt    = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const Driver = require('../models/Driver');
 const Ride   = require('../models/Ride');
+const {
+  sendDriverWelcomeEmail,
+  sendAdminDriverNotification
+} = require('../config/mailer');
 
 // ── Helper: generate JWT ─────────────────────────────────────────────────────
 const generateToken = (id, role) =>
@@ -26,29 +30,47 @@ function getDriverId(req) {
 // ── POST /api/drivers/register ───────────────────────────────────────────────
 exports.registerDriver = async (req, res) => {
   try {
-    const { fullName, phone, email, password, city, vehicle } = req.body;
+    const { fullName, phone, email, password, city, serviceType, cnic, vehicle } = req.body;
 
+    // ── Required field validation ────────────────────────────────────────────
     if (!fullName || !phone || !password) {
       return res.status(400).json({ message: 'fullName, phone and password are required' });
     }
 
+    // ── Required document validation ─────────────────────────────────────────
+    const requiredDocs = ['cnic-front', 'cnic-back', 'license', 'vehicle-reg', 'photo'];
+    if (!req.files) {
+      return res.status(400).json({ message: 'Please upload all required documents (CNIC front, CNIC back, driving license, vehicle registration, your photo).' });
+    }
+    for (const docKey of requiredDocs) {
+      if (!req.files[docKey] || req.files[docKey].length === 0) {
+        const labels = {
+          'cnic-front':  'CNIC Front',
+          'cnic-back':   'CNIC Back',
+          'license':     'Driving License',
+          'vehicle-reg': 'Vehicle Registration',
+          'photo':       'Your Photo'
+        };
+        return res.status(400).json({ message: 'Missing required document: ' + (labels[docKey] || docKey) });
+      }
+    }
+
+    // ── Duplicate phone check ─────────────────────────────────────────────────
     const exists = await Driver.findOne({ phone });
     if (exists) return res.status(400).json({ message: 'Phone number already registered' });
 
     const hashed = await bcrypt.hash(password, 10);
 
-    // Build document paths from uploaded files (optional)
+    // ── Build document paths from uploaded files ──────────────────────────────
     const docs = {};
-    if (req.files) {
-      if (req.files['cnic-front'])    docs.cnicFront   = req.files['cnic-front'][0].path;
-      if (req.files['cnic-back'])     docs.cnicBack    = req.files['cnic-back'][0].path;
-      if (req.files['license'])       docs.license     = req.files['license'][0].path;
-      if (req.files['vehicle-reg'])   docs.vehicleReg  = req.files['vehicle-reg'][0].path;
-      if (req.files['photo'])         docs.photo       = req.files['photo'][0].path;
-      if (req.files['vehicle-photo']) docs.vehiclePhoto = req.files['vehicle-photo'][0].path;
-    }
+    if (req.files['cnic-front'])    docs.cnicFront    = req.files['cnic-front'][0].path;
+    if (req.files['cnic-back'])     docs.cnicBack     = req.files['cnic-back'][0].path;
+    if (req.files['license'])       docs.license      = req.files['license'][0].path;
+    if (req.files['vehicle-reg'])   docs.vehicleReg   = req.files['vehicle-reg'][0].path;
+    if (req.files['photo'])         docs.photo        = req.files['photo'][0].path;
+    if (req.files['vehicle-photo']) docs.vehiclePhoto = req.files['vehicle-photo'][0].path;
 
-    // Parse vehicle info (may arrive as JSON string from multipart form)
+    // ── Parse vehicle info (arrives as JSON string from multipart form) ───────
     let vehicleData = vehicle;
     if (typeof vehicle === 'string') {
       try { vehicleData = JSON.parse(vehicle); } catch (e) { vehicleData = {}; }
@@ -57,18 +79,29 @@ exports.registerDriver = async (req, res) => {
     const driver = await Driver.create({
       fullName,
       phone,
-      email:    email || '',
-      password: hashed,
-      city:     city  || '',
-      vehicle:  vehicleData || {},
-      documents: docs,
-      status:   'pending',    // requires admin approval
-      isOnline: false,
-      location: { type: 'Point', coordinates: [0, 0] }
+      email:       email || '',
+      password:    hashed,
+      city:        city  || '',
+      cnic:        cnic  || '',
+      serviceType: serviceType || '',
+      vehicle:     vehicleData || {},
+      documents:   docs,
+      status:      'pending',    // requires admin approval
+      isOnline:    false,
+      location:    { type: 'Point', coordinates: [0, 0] }
     });
+
+    // ── Send notification emails (fire-and-forget, never block response) ──────
+    sendDriverWelcomeEmail(driver).catch(err =>
+      console.error('sendDriverWelcomeEmail failed:', err.message)
+    );
+    sendAdminDriverNotification(driver).catch(err =>
+      console.error('sendAdminDriverNotification failed:', err.message)
+    );
 
     const token = generateToken(driver._id, 'driver');
     res.status(201).json({
+      success: true,
       message: 'Driver registered successfully. Awaiting admin approval.',
       token,
       driver: {
