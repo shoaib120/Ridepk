@@ -421,7 +421,7 @@ function doAdminLogin() {
   if (!user || !pass) { errEl.textContent = 'Enter username and password.'; return; }
   btn.disabled = true; btn.textContent = 'Signing in…';
 
-  fetch(API + '/api/admin/verify', {
+  fetch(API + '/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: user, password: pass })
@@ -906,8 +906,8 @@ function openSubModal(id) {
       '<div class="si-row"><span class="si-label">Submitted</span><span class="si-val">' + fd(sub.submittedAt) + ' ' + ft(sub.submittedAt) + '</span></div>';
 
     /* proof image */
-    if (sub.proofFile) {
-      var proofUrl = (sub.proofFile && sub.proofFile.startsWith('http')) ? sub.proofFile : API + '/uploads/' + sub.proofFile;
+    if (sub.proofImage) {
+      var proofUrl = (sub.proofImage && sub.proofImage.startsWith('http')) ? sub.proofImage : API + '/uploads/' + sub.proofImage;
       document.getElementById('sub-mdl-proof').innerHTML =
         '<div style="font-size:.85rem;font-weight:600;color:#a0a0b8;margin-bottom:8px">Payment Screenshot:</div>' +
         '<img class="proof-img" src="' + proofUrl + '" alt="Payment Proof" onclick="lightbox(\'' + proofUrl + '\')" onerror="this.outerHTML=\'<div class=\\"err\\">Image not found on server.</div>\'">';
