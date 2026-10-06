@@ -28,11 +28,10 @@ const driverSchema = new mongoose.Schema({
     year:  { type: Number, required: true },
     color: { type: String, required: true },
     plate: { type: String, required: true, uppercase: true },
-    // ✅ FIXED: Added 'rickshaw' and 'motorbike' to vehicle types
-    type:  { type: String, enum: ['car', 'suv', 'van', 'bike', 'rickshaw', 'motorbike'], default: 'car' }
+    type:  { type: String, enum: ['car','suv','van','bike','rickshaw'], default: 'car' }
   },
 
-  // Uploaded documents (file paths stored here)
+  // Uploaded documents (filenames stored here — served at /uploads/<filename>)
   documents: {
     cnicFront:     { type: String, default: '' },
     cnicBack:      { type: String, default: '' },
@@ -49,13 +48,13 @@ const driverSchema = new mongoose.Schema({
     default: 'pending'
   },
 
-  // Online/offline toggle
+  // Online/offline toggle (driver goes online when ready to take rides)
   isOnline: { type: Boolean, default: false },
 
-  // Live GPS location
+  // Live GPS location (updated via Socket.io every few seconds)
   location: {
     type: { type: String, default: 'Point' },
-    coordinates: { type: [Number], default: [0, 0] }
+    coordinates: { type: [Number], default: [0, 0] } // [longitude, latitude]
   },
 
   // Ratings
@@ -65,8 +64,8 @@ const driverSchema = new mongoose.Schema({
   },
 
   // Earnings
-  totalEarnings:  { type: Number, default: 0 },
-  completedRides: { type: Number, default: 0 },
+  totalEarnings:    { type: Number, default: 0 },
+  completedRides:   { type: Number, default: 0 },
 
   // Current active ride (if any)
   currentRide: { type: mongoose.Schema.Types.ObjectId, ref: 'Ride', default: null },
@@ -74,19 +73,17 @@ const driverSchema = new mongoose.Schema({
   rejectionReason: { type: String, default: '' },
   role: { type: String, default: 'driver' },
 
-  // ✅ NEW: Subscription tracking
+  // Subscription
   subscription: {
     plan:          { type: String, enum: ['monthly', 'yearly'], default: 'monthly' },
-    amount:        { type: Number, default: 0 },
-    paymentMethod: { type: String, default: '' },
-    proofFile:     { type: String, default: '' },
-    paymentStatus: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
     isActive:      { type: Boolean, default: false },
     startDate:     { type: Date },
     endDate:       { type: Date },
+    paymentStatus: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
     submittedAt:   { type: Date },
     reviewedAt:    { type: Date },
-    reviewedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }
+    reviewedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    proofImage:    { type: String, default: '' }
   }
 
 }, { timestamps: true });
@@ -94,7 +91,7 @@ const driverSchema = new mongoose.Schema({
 // Geospatial index for finding nearby drivers
 driverSchema.index({ location: '2dsphere' });
 
-// Hash password before saving
+// ✅ Hash password before saving — DO NOT manually hash before Driver.create()
 driverSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(10);

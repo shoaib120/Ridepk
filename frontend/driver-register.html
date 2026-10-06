@@ -95,6 +95,7 @@
                   <option>Quetta</option>
                   <option>Multan</option>
                   <option>Faisalabad</option>
+                  <option>Mirpur AJK</option>
                 </select>
               </div>
               <div class="fgroup">
@@ -116,29 +117,45 @@
 
           <!-- VEHICLE INFO -->
           <div class="fsection hidden" id="fsec2">
+
+            <!-- Vehicle Type FIRST so make list updates correctly -->
+            <div class="fgroup">
+              <label>Vehicle Type</label>
+              <div class="vtype-grid">
+                <div class="vtype sel" onclick="pickVtype(this,'car')">🚗 Car</div>
+                <div class="vtype" onclick="pickVtype(this,'suv')">🚙 SUV</div>
+                <div class="vtype" onclick="pickVtype(this,'van')">🚐 Van</div>
+                <div class="vtype" onclick="pickVtype(this,'bike')">🏍️ Bike</div>
+                <div class="vtype" onclick="pickVtype(this,'rickshaw')">🛺 Rickshaw</div>
+              </div>
+            </div>
+
             <div class="two-col">
               <div class="fgroup">
                 <label>Vehicle Make *</label>
                 <select id="vmake" required>
+                  <!-- Populated dynamically by pickVtype() -->
                   <option value="">Select...</option>
                   <option>Suzuki</option>
                   <option>Toyota</option>
                   <option>Honda</option>
                   <option>Kia</option>
                   <option>Hyundai</option>
+                  <option>Changan</option>
+                  <option>MG</option>
                   <option>Daihatsu</option>
                   <option>Other</option>
                 </select>
               </div>
               <div class="fgroup">
                 <label>Vehicle Model *</label>
-                <input type="text" id="vmodel" placeholder="Alto / Corolla / Civic..." required />
+                <input type="text" id="vmodel" placeholder="Alto / Corolla / CD70..." required />
               </div>
             </div>
             <div class="two-col">
               <div class="fgroup">
                 <label>Year *</label>
-                <input type="number" id="vyear" placeholder="2018" min="2010" max="2025" required />
+                <input type="number" id="vyear" placeholder="2018" min="2010" max="2026" required />
               </div>
               <div class="fgroup">
                 <label>Color *</label>
@@ -149,15 +166,7 @@
               <label>License Plate Number *</label>
               <input type="text" id="vplate" placeholder="LHR-1234 or ABC-1234" required />
             </div>
-            <div class="fgroup">
-              <label>Vehicle Type</label>
-              <div class="vtype-grid">
-                <div class="vtype sel" onclick="pickVtype(this,'car')">🚗 Car</div>
-                <div class="vtype" onclick="pickVtype(this,'suv')">🚙 SUV</div>
-                <div class="vtype" onclick="pickVtype(this,'van')">🚐 Van</div>
-                <div class="vtype" onclick="pickVtype(this,'bike')">🏍️ Bike</div>
-              </div>
-            </div>
+
             <div class="two-btns">
               <button type="button" class="btn-back" onclick="goFStep(1)">← Back</button>
               <button type="button" class="btn-next" onclick="goFStep(3)">Next: Documents →</button>

@@ -3,47 +3,42 @@
 // =====================================================
 // ⚠️  Do NOT modify mailer.js or any email-related code.
 
-const jwt    = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const Driver = require('../models/Driver');
-const Ride   = require('../models/Ride');
+const jwt    = require('jsonwebtoken');
 const {
   sendDriverWelcomeEmail,
   sendAdminDriverNotification
 } = require('../config/mailer');
 
-// ── Helper: generate JWT ─────────────────────────────────────────────────────
 const generateToken = (id, role) =>
   jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-// ── Helper: extract driver ID from Bearer token ──────────────────────────────
-function getDriverId(req) {
-  const auth  = req.headers.authorization || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
-  if (!token) return null;
+// =====================
+//  REGISTER DRIVER
+//  POST /api/drivers/register
+// =====================
+const registerDriver = async (req, res) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded.id || decoded._id || decoded.driverId || null;
-  } catch (e) { return null; }
-}
+    const {
+      fullName, phone, email, cnic, city,
+      serviceType, password, vehicle
+    } = req.body;
 
-// ── POST /api/drivers/register ───────────────────────────────────────────────
-exports.registerDriver = async (req, res) => {
-  try {
-    const { fullName, phone, email, password, city, serviceType, cnic, vehicle } = req.body;
-
-    // ── Required field validation ────────────────────────────────────────────
-    if (!fullName || !phone || !password) {
-      return res.status(400).json({ message: 'fullName, phone and password are required' });
+    // Validate required personal fields
+    if (!fullName || !phone || !cnic || !city || !serviceType || !password) {
+      return res.status(400).json({ message: 'All personal fields are required.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters.' });
     }
 
-    // ── Required document validation ─────────────────────────────────────────
+    // Validate required documents
     const requiredDocs = ['cnic-front', 'cnic-back', 'license', 'vehicle-reg', 'photo'];
     if (!req.files) {
-      return res.status(400).json({ message: 'Please upload all required documents (CNIC front, CNIC back, driving license, vehicle registration, your photo).' });
+      return res.status(400).json({ message: 'Please upload all required documents.' });
     }
-    for (const docKey of requiredDocs) {
-      if (!req.files[docKey] || req.files[docKey].length === 0) {
+    for (const key of requiredDocs) {
+      if (!req.files[key] || req.files[key].length === 0) {
         const labels = {
           'cnic-front':  'CNIC Front',
           'cnic-back':   'CNIC Back',
@@ -51,47 +46,53 @@ exports.registerDriver = async (req, res) => {
           'vehicle-reg': 'Vehicle Registration',
           'photo':       'Your Photo'
         };
-        return res.status(400).json({ message: 'Missing required document: ' + (labels[docKey] || docKey) });
+        return res.status(400).json({ message: 'Missing required document: ' + (labels[key] || key) });
       }
     }
 
-    // ── Duplicate phone check ─────────────────────────────────────────────────
-    const exists = await Driver.findOne({ phone });
-    if (exists) return res.status(400).json({ message: 'Phone number already registered' });
+    // Check duplicates
+    const phoneExists = await Driver.findOne({ phone });
+    if (phoneExists) return res.status(400).json({ message: 'A driver with this phone number already exists.' });
 
-    const hashed = await bcrypt.hash(password, 10);
+    const cnicExists = await Driver.findOne({ cnic });
+    if (cnicExists) return res.status(400).json({ message: 'A driver with this CNIC already exists.' });
 
-    // ── Build document paths from uploaded files ──────────────────────────────
-    const docs = {};
-    if (req.files['cnic-front'])    docs.cnicFront    = req.files['cnic-front'][0].path;
-    if (req.files['cnic-back'])     docs.cnicBack     = req.files['cnic-back'][0].path;
-    if (req.files['license'])       docs.license      = req.files['license'][0].path;
-    if (req.files['vehicle-reg'])   docs.vehicleReg   = req.files['vehicle-reg'][0].path;
-    if (req.files['photo'])         docs.photo        = req.files['photo'][0].path;
-    if (req.files['vehicle-photo']) docs.vehiclePhoto = req.files['vehicle-photo'][0].path;
+    // Handle uploaded document paths
+    // ⚠️  Store only the FILENAME — the backend serves files at /uploads/<filename>
+    const documents = {};
+    if (req.files['cnic-front'])    documents.cnicFront      = req.files['cnic-front'][0].filename;
+    if (req.files['cnic-back'])     documents.cnicBack       = req.files['cnic-back'][0].filename;
+    if (req.files['license'])       documents.drivingLicense = req.files['license'][0].filename;
+    if (req.files['vehicle-reg'])   documents.vehicleReg     = req.files['vehicle-reg'][0].filename;
+    if (req.files['photo'])         documents.driverPhoto    = req.files['photo'][0].filename;
+    if (req.files['vehicle-photo']) documents.vehiclePhoto   = req.files['vehicle-photo'][0].filename;
 
-    // ── Parse vehicle info (arrives as JSON string from multipart form) ───────
+    // Parse vehicle if sent as JSON string (multipart/form-data)
     let vehicleData = vehicle;
     if (typeof vehicle === 'string') {
       try { vehicleData = JSON.parse(vehicle); } catch (e) { vehicleData = {}; }
     }
 
+    // Validate vehicle
+    if (!vehicleData || !vehicleData.make || !vehicleData.model || !vehicleData.plate) {
+      return res.status(400).json({ message: 'All vehicle fields are required.' });
+    }
+
+    // Create driver
+    // ✅ Do NOT hash password here — the Driver model pre('save') hook hashes it automatically
     const driver = await Driver.create({
-      fullName,
-      phone,
+      fullName, phone,
       email:       email || '',
-      password:    hashed,
-      city:        city  || '',
-      cnic:        cnic  || '',
-      serviceType: serviceType || '',
-      vehicle:     vehicleData || {},
-      documents:   docs,
-      status:      'pending',    // requires admin approval
-      isOnline:    false,
-      location:    { type: 'Point', coordinates: [0, 0] }
+      cnic,
+      city,
+      serviceType,
+      password,          // plain text — model hashes it in pre-save hook
+      vehicle:     vehicleData,
+      documents,
+      status:      'pending'  // admin must approve
     });
 
-    // ── Send notification emails (fire-and-forget, never block response) ──────
+    // Send notification emails (fire-and-forget — never block the response)
     sendDriverWelcomeEmail(driver).catch(err =>
       console.error('sendDriverWelcomeEmail failed:', err.message)
     );
@@ -99,260 +100,120 @@ exports.registerDriver = async (req, res) => {
       console.error('sendAdminDriverNotification failed:', err.message)
     );
 
-    const token = generateToken(driver._id, 'driver');
     res.status(201).json({
       success: true,
-      message: 'Driver registered successfully. Awaiting admin approval.',
-      token,
-      driver: {
-        _id:      driver._id,
-        fullName: driver.fullName,
-        phone:    driver.phone,
-        city:     driver.city,
-        status:   driver.status
-      }
+      message: 'Application submitted! We will review and contact you within 24–48 hours.',
+      driverId: driver._id
     });
-  } catch (err) {
-    console.error('registerDriver error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+
+  } catch (error) {
+    console.error('Driver register error:', error);
+    res.status(500).json({ message: 'Server error during registration.' });
   }
 };
 
-// ── POST /api/drivers/login ──────────────────────────────────────────────────
-exports.loginDriver = async (req, res) => {
+// =====================
+//  GET DRIVER PROFILE
+//  GET /api/drivers/profile
+// =====================
+const getProfile = async (req, res) => {
   try {
-    const { phone, password } = req.body;
-    if (!phone || !password)
-      return res.status(400).json({ message: 'Phone and password are required' });
-
-    const driver = await Driver.findOne({ phone });
-    if (!driver) return res.status(401).json({ message: 'Invalid phone or password' });
-
-    const match = await bcrypt.compare(password, driver.password);
-    if (!match) return res.status(401).json({ message: 'Invalid phone or password' });
-
-    // Block non-approved accounts with descriptive messages the frontend uses
-    if (driver.status === 'pending') {
-      return res.status(403).json({ message: 'Your application is pending approval.' });
-    }
-    if (driver.status === 'rejected') {
-      return res.status(403).json({ message: 'Your application was rejected. Contact support.' });
-    }
-    if (driver.status === 'suspended') {
-      return res.status(403).json({ message: 'Your account has been suspended. Contact support.' });
-    }
-
-    const token = generateToken(driver._id, 'driver');
-    res.json({
-      success: true,          // ← frontend checks data.success === true
-      message: 'Login successful',
-      token,
-      driver: {
-        _id:      driver._id,
-        fullName: driver.fullName,
-        phone:    driver.phone,
-        city:     driver.city,
-        status:   driver.status,
-        isOnline: driver.isOnline,
-        vehicle:  driver.vehicle,
-        rating:   driver.rating
-      }
-    });
-  } catch (err) {
-    console.error('loginDriver error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    const driver = await Driver.findById(req.user._id).select('-password -documents');
+    if (!driver) return res.status(404).json({ message: 'Driver not found.' });
+    res.json({ success: true, driver });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
   }
 };
 
-// ── GET /api/drivers/profile ─────────────────────────────────────────────────
-exports.getProfile = async (req, res) => {
+// =====================
+//  TOGGLE ONLINE/OFFLINE
+//  PUT /api/drivers/toggle-online
+// =====================
+const toggleOnline = async (req, res) => {
   try {
-    const driverId = req.driver?._id || getDriverId(req);
-    if (!driverId) return res.status(401).json({ message: 'Unauthorized' });
-
-    const driver = await Driver.findById(driverId).select('-password');
-    if (!driver) return res.status(404).json({ message: 'Driver not found' });
-
-    res.json({ success: true, driver }); // ← dashboard checks data.success
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
-
-// ── PUT /api/drivers/toggle-online ───────────────────────────────────────────
-exports.toggleOnline = async (req, res) => {
-  try {
-    const driverId = req.driver?._id || getDriverId(req);
-    if (!driverId) return res.status(401).json({ message: 'Unauthorized' });
-
-    const driver = await Driver.findById(driverId);
-    if (!driver) return res.status(404).json({ message: 'Driver not found' });
+    const driver = await Driver.findById(req.user._id);
+    if (!driver) return res.status(404).json({ message: 'Driver not found.' });
 
     if (driver.status !== 'approved') {
-      return res.status(403).json({ message: 'Account not yet approved by admin' });
+      return res.status(403).json({ message: 'Your account must be approved before going online.' });
     }
 
     driver.isOnline = !driver.isOnline;
     await driver.save();
 
-    res.json({ success: true, message: driver.isOnline ? 'You are now online' : 'You are now offline', isOnline: driver.isOnline });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.json({
+      success:  true,
+      isOnline: driver.isOnline,
+      message:  driver.isOnline ? 'You are now online. Ride requests will appear.' : 'You are now offline.'
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
   }
 };
 
-// ── GET /api/drivers/nearby ───────────────────────────────────────────────────
-exports.getNearbyDrivers = async (req, res) => {
+// =====================
+//  FIND NEARBY DRIVERS
+//  GET /api/drivers/nearby?lat=31.5&lng=74.3&radius=5
+// =====================
+const getNearbyDrivers = async (req, res) => {
   try {
-    const { lat, lng, radius = 10 } = req.query; // radius in km
-    if (!lat || !lng)
-      return res.status(400).json({ message: 'lat and lng query params are required' });
-
-    const radiusInRadians = parseFloat(radius) / 6371;
+    const { lat, lng, radius = 5 } = req.query;
+    if (!lat || !lng) return res.status(400).json({ message: 'lat and lng are required.' });
 
     const drivers = await Driver.find({
       isOnline: true,
       status:   'approved',
       location: {
-        $geoWithin: {
-          $centerSphere: [[parseFloat(lng), parseFloat(lat)], radiusInRadians]
+        $near: {
+          $geometry: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] },
+          $maxDistance: parseFloat(radius) * 1000
         }
       }
-    }).select('fullName phone vehicle rating location city');
+    })
+    .select('fullName rating vehicle location profilePhoto')
+    .limit(10);
 
-    res.json({ drivers });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.json({ success: true, count: drivers.length, drivers });
+  } catch (error) {
+    // Geospatial query may fail if index not yet set — fallback
+    const drivers = await Driver.find({ isOnline: true, status: 'approved' })
+      .select('fullName rating vehicle profilePhoto').limit(10);
+    res.json({ success: true, count: drivers.length, drivers });
   }
 };
 
-// ── PUT /api/drivers/location ────────────────────────────────────────────────
-// Body: { lat, lng }
-// Rejects Gilgit-Baltistan (lat > 35.5°N) — service area is AJK/Punjab only.
-exports.updateLocation = async (req, res) => {
+// =====================
+//  GET DRIVER EARNINGS
+//  GET /api/drivers/earnings
+// =====================
+const getEarnings = async (req, res) => {
   try {
-    const driverId = req.driver?._id || getDriverId(req);
-    if (!driverId) return res.status(401).json({ message: 'Unauthorized' });
-
-    const lat = parseFloat(req.body.lat);
-    const lng = parseFloat(req.body.lng);
-
-    if (isNaN(lat) || isNaN(lng))
-      return res.status(400).json({ message: 'Invalid coordinates' });
-
-    // Reject null island
-    if (Math.abs(lat) < 0.5 && Math.abs(lng) < 0.5)
-      return res.status(400).json({ message: 'Invalid coordinates (null island)' });
-
-    // Service area bounding box — rejects Gilgit (35.9°N > 35.5 limit)
-    if (lat < 23 || lat > 35.5 || lng < 60 || lng > 77) {
-      return res.status(400).json({
-        message: 'Coordinates outside service area (AJK/Punjab)',
-        received: { lat, lng }
-      });
-    }
-
-    // GeoJSON stores [lng, lat] — longitude first
-    await Driver.findByIdAndUpdate(driverId, {
-      location: { type: 'Point', coordinates: [lng, lat] }
-    });
-
-    res.json({ success: true, lat, lng });
-  } catch (err) {
-    console.error('updateLocation error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
-
-// ── GET /api/drivers/earnings ─────────────────────────────────────────────────
-exports.getEarnings = async (req, res) => {
-  try {
-    const driverId = req.driver?._id || getDriverId(req);
-    if (!driverId) return res.status(401).json({ message: 'Unauthorized' });
-
+    const Ride = require('../models/Ride');
     const rides = await Ride.find({
-      driver: driverId,
+      driver: req.user._id,
       status: 'completed'
-    }).select('finalPrice estimatedFare createdAt completedAt pickup destination').sort({ createdAt: -1 });
+    }).sort({ completedAt: -1 }).limit(50);
 
-    const total = rides.reduce((sum, r) => sum + (r.finalPrice || r.estimatedFare || 0), 0);
-
-    // Last 7 days breakdown
-    const now    = new Date();
-    const week   = rides.filter(r => (now - new Date(r.createdAt)) < 7 * 24 * 3600 * 1000);
-    const weekTotal = week.reduce((sum, r) => sum + (r.finalPrice || r.estimatedFare || 0), 0);
-
-    // Today's breakdown — rides completed today (since midnight local time)
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayRidesList = rides.filter(r => {
-      // Use completedAt if available, fall back to createdAt
-      const rideDate = r.completedAt ? new Date(r.completedAt) : new Date(r.createdAt);
-      return rideDate >= todayStart;
+    const totalEarnings = rides.reduce((sum, r) => sum + (r.finalPrice || 0), 0);
+    const todayRides = rides.filter(r => {
+      const today    = new Date();
+      const rideDate = new Date(r.completedAt);
+      return rideDate.toDateString() === today.toDateString();
     });
-    const todayEarnings = todayRidesList.reduce((sum, r) => sum + (r.finalPrice || r.estimatedFare || 0), 0);
+    const todayEarnings = todayRides.reduce((sum, r) => sum + (r.finalPrice || 0), 0);
 
     res.json({
-      success:        true,
-      totalEarnings:  total,
-      weekEarnings:   weekTotal,
-      todayEarnings:  todayEarnings,
-      todayRides:     todayRidesList.length,
-      totalRides:     rides.length,
-      recentRides:    rides.slice(0, 20)
+      success:      true,
+      totalEarnings,
+      todayEarnings,
+      totalRides:   rides.length,
+      todayRides:   todayRides.length,
+      recentRides:  rides.slice(0, 10)
     });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
   }
 };
 
-// ── GET /api/drivers/subscription/plans ──────────────────────────────────────
-exports.getSubscriptionPlans = async (req, res) => {
-  res.json({
-    plans: [
-      { id: 'basic',    name: 'Basic',    price: 500,  duration: 30, ridesLimit: 50,  description: 'Up to 50 rides per month' },
-      { id: 'standard', name: 'Standard', price: 1000, duration: 30, ridesLimit: 150, description: 'Up to 150 rides per month' },
-      { id: 'premium',  name: 'Premium',  price: 1800, duration: 30, ridesLimit: null, description: 'Unlimited rides per month' }
-    ]
-  });
-};
-
-// ── POST /api/drivers/subscription/submit ─────────────────────────────────────
-exports.submitSubscriptionProof = async (req, res) => {
-  try {
-    const driverId = req.driver?._id || getDriverId(req);
-    if (!driverId) return res.status(401).json({ message: 'Unauthorized' });
-
-    const { plan } = req.body;
-    const proofPath = req.file ? req.file.path : null;
-
-    if (!plan)       return res.status(400).json({ message: 'Plan is required' });
-    if (!proofPath)  return res.status(400).json({ message: 'Payment proof image is required' });
-
-    await Driver.findByIdAndUpdate(driverId, {
-      'subscription.plan':          plan,
-      'subscription.proofPath':     proofPath,
-      'subscription.status':        'pending',
-      'subscription.submittedAt':   new Date()
-    });
-
-    res.json({ success: true, message: 'Subscription proof submitted. Awaiting admin approval.', plan });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
-
-// ── GET /api/drivers/subscription ────────────────────────────────────────────
-exports.getSubscriptionStatus = async (req, res) => {
-  try {
-    const driverId = req.driver?._id || getDriverId(req);
-    if (!driverId) return res.status(401).json({ message: 'Unauthorized' });
-
-    const driver = await Driver.findById(driverId).select('subscription fullName');
-    if (!driver) return res.status(404).json({ message: 'Driver not found' });
-
-    res.json({ success: true, subscription: driver.subscription || { status: 'none' } });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
+module.exports = { registerDriver, getProfile, toggleOnline, getNearbyDrivers, getEarnings };

@@ -2,6 +2,15 @@
 //  driver.js — Driver registration form logic
 // =====================================================
 
+// Vehicle makes by type
+const VEHICLE_MAKES = {
+  car:      ['Suzuki', 'Toyota', 'Honda', 'Kia', 'Hyundai', 'Changan', 'MG', 'Daihatsu', 'Other'],
+  suv:      ['Toyota', 'Honda', 'Kia', 'Hyundai', 'Suzuki', 'MG', 'Changan', 'Other'],
+  van:      ['Toyota', 'Suzuki', 'Hyundai', 'Kia', 'Other'],
+  bike:     ['Yamaha', 'Honda', 'Suzuki', 'Road Prince', 'Ravi', 'United', 'Super Power', 'Unique', 'Other'],
+  rickshaw: ['Sazgar', 'Rozgar', 'Ravi', 'Abdali', 'Qingqi', 'Other']
+};
+
 let currentFStep = 1;
 let selectedVtype = 'car';
 
@@ -66,11 +75,33 @@ function validateFStep(step) {
   return true;
 }
 
-// ===== SELECT VEHICLE TYPE =====
+// ===== SELECT VEHICLE TYPE — also updates the make dropdown =====
 function pickVtype(el, type) {
   document.querySelectorAll('.vtype').forEach(v => v.classList.remove('sel'));
   el.classList.add('sel');
   selectedVtype = type;
+
+  // Update make dropdown
+  const makeSelect = document.getElementById('vmake');
+  const makes = VEHICLE_MAKES[type] || VEHICLE_MAKES['car'];
+  makeSelect.innerHTML = '<option value="">Select...</option>';
+  makes.forEach(make => {
+    const opt = document.createElement('option');
+    opt.value = make;
+    opt.textContent = make;
+    makeSelect.appendChild(opt);
+  });
+
+  // Update model placeholder hint
+  const modelInput = document.getElementById('vmodel');
+  const hints = {
+    car:      'Alto / Corolla / Civic...',
+    suv:      'Fortuner / Tucson / Sportage...',
+    van:      'Hiace / Shehzore...',
+    bike:     'CD70 / CG125 / YBR...',
+    rickshaw: 'CNG / LPG / 3-Wheeler...'
+  };
+  if (modelInput) modelInput.placeholder = hints[type] || 'Enter model...';
 }
 
 // ===== TRIGGER FILE UPLOAD =====
