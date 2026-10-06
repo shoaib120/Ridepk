@@ -1219,7 +1219,7 @@
         // Filter: match vehicle type + skip cooldown (1 min after skipping)
         var rides = (data.rides || []).filter(function(r) {
           // Vehicle filter — only show rides that match this driver's vehicle type
-          if (myType && r.vehicleType && r.vehicleType !== myType) return false;
+          // if (myType && r.vehicleType && r.vehicleType !== myType) return false;
           // Skip cooldown — don't show rides the driver skipped in the last 60 seconds
           if (skippedRides[r._id] && (now - skippedRides[r._id]) < 60000) return false;
           return true;
