@@ -7,8 +7,168 @@
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/dashboard.css" />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    #pax-ride-map {
+      width: 100%;
+      height: 260px;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 14px;
+      border: 1px solid #e0e0e0;
+    }
+    .pax-chat-panel {
+      background: #f9f9f9;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+      padding: 12px;
+      margin-top: 14px;
+    }
+    .pax-chat-panel h4 {
+      margin: 0 0 10px;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    #pax-chat-messages {
+      height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+      padding: 4px;
+    }
+    .pax-chat-bubble {
+      max-width: 75%;
+      padding: 8px 12px;
+      border-radius: 18px;
+      font-size: 0.88rem;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .pax-chat-bubble.me {
+      background: #ff6b00;
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .pax-chat-bubble.them {
+      background: #e8e8e8;
+      color: #222;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    .bubble-time {
+      font-size: 0.7rem;
+      opacity: 0.65;
+      margin-top: 3px;
+      text-align: right;
+    }
+    .pax-chat-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .pax-chat-input-row input {
+      flex: 1;
+      border: 1px solid #ddd;
+      border-radius: 22px;
+      padding: 8px 14px;
+      font-size: 0.88rem;
+      outline: none;
+    }
+    .pax-chat-input-row button {
+      background: #ff6b00;
+      color: #fff;
+      border: none;
+      border-radius: 22px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+    .pax-map-legend {
+      display: flex;
+      gap: 14px;
+      font-size: 0.78rem;
+      color: #555;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .pax-map-legend span { display: flex; align-items: center; gap: 5px; }
+    .leg-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    #pax-eta-bar {
+      background: #fff3e0;
+      border: 1px solid #ffd0a0;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      color: #c45000;
+      margin-bottom: 10px;
+      min-height: 34px;
+    }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px 28px;
+      max-width: 380px;
+      width: 92%;
+      text-align: center;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    }
+    .modal-box h3 {
+      margin: 12px 0 16px;
+      font-size: 1.2rem;
+      color: #e74c3c;
+    }
+    .modal-box .cancel-details {
+      text-align: left;
+      background: #fef9f9;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      line-height: 1.9;
+      color: #333;
+    }
+    .modal-box .cancel-details a { color: #e74c3c; }
+    .modal-box .btn-modal-ok {
+      background: #ff6b00;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 28px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+  </style>
 </head>
 <body class="dash-page">
+
+  <!-- Driver Cancelled Modal -->
+  <div class="modal-overlay" id="driver-cancel-modal">
+    <div class="modal-box" style="border-top:5px solid #e74c3c;">
+      <div style="font-size:2.5rem">🚫</div>
+      <h3>Ride Cancelled by Driver</h3>
+      <div class="cancel-details" id="driver-cancel-details"></div>
+      <button class="btn-modal-ok" onclick="closeDriverCancelModal()">OK — Book a New Ride</button>
+    </div>
+  </div>
 
   <nav class="navbar scrolled">
     <div class="nav-inner">
@@ -146,135 +306,441 @@
     </main>
   </div>
 
-    <script>
-    // Dynamically load socket.io from backend
+  <script>
     (function(){
       var s=document.createElement('script');
       s.src=(window.RIDEPK_API_BASE||'https://ridepk.onrender.com')+'/socket.io/socket.io.js';
       document.head.appendChild(s);
     })();
   </script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/api.js"></script>
   <script src="js/socket-client.js"></script>
   <script>
-    // ===== AUTH CHECK =====
-    const token = localStorage.getItem('token');
-    const role  = localStorage.getItem('role');
+    var API_BASE = 'https://ridepk.onrender.com';
+
+    // Map state
+    var paxMap = null;
+    var paxPickupMarker = null;
+    var paxDestMarker   = null;
+    var paxDriverMarker = null;
+    var paxRouteLayer   = null;
+
+    // Chat state
+    var paxChatInterval = null;
+    var paxSeenMsgIds   = {};
+
+    // Poll state
+    var paxRidePollInterval = null;
+    var currentActiveRideId = null;
+
+    // Auth check
+    var token = localStorage.getItem('token');
+    var role  = localStorage.getItem('role');
     if (!token || role !== 'passenger') {
       window.location.href = 'login.html';
     }
 
-    // ===== LOAD USER INFO =====
+    function authHeaders() {
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      };
+    }
+
+    // ===== LOAD USER =====
     async function loadUser() {
-      const data = await API.get('/api/auth/me');
+      var data = await API.get('/api/auth/me');
       if (data.user) {
-        const name = data.user.name || 'User';
-        document.getElementById('user-name').textContent    = name;
-        document.getElementById('sidebar-name').textContent = name;
+        var name = data.user.name || 'User';
+        document.getElementById('user-name').textContent     = name;
+        document.getElementById('sidebar-name').textContent  = name;
         document.getElementById('greeting-name').textContent = name.split(' ')[0];
         document.getElementById('p-name').value  = name;
         document.getElementById('p-phone').value = data.user.phone || '';
         document.getElementById('p-email').value = data.user.email || '';
-        document.getElementById('stat-rating').textContent = data.user.rating?.average || '5.0';
+        var rating = data.user.rating && data.user.rating.average ? data.user.rating.average : '5.0';
+        document.getElementById('stat-rating').textContent = rating;
       }
     }
 
-    // ===== LOAD RIDE HISTORY =====
+    // ===== LOAD RIDES =====
     async function loadRides() {
-      const data = await API.get('/api/rides/my');
-      const rides = data.rides || [];
+      var data  = await API.get('/api/rides/my');
+      var rides = data.rides || [];
 
-      // Stats
-      const totalSpent = rides.filter(r => r.status === 'completed')
-        .reduce((s, r) => s + (r.finalPrice || 0), 0);
-      document.getElementById('stat-total').textContent = rides.filter(r => r.status === 'completed').length;
+      var completed  = rides.filter(function(r){ return r.status === 'completed'; });
+      var totalSpent = completed.reduce(function(s,r){ return s + (r.finalPrice || 0); }, 0);
+      document.getElementById('stat-total').textContent = completed.length;
       document.getElementById('stat-spent').textContent = 'Rs. ' + totalSpent;
 
-      // Overview (last 3)
-      renderRideList(rides.slice(0, 3), 'overview-rides');
-
-      // Full history
+      renderRideList(rides.slice(0,3), 'overview-rides');
       renderRideList(rides, 'history-list');
 
-      // Active ride
-      const active = rides.find(r => ['searching','accepted','driver_arrived','in_progress'].includes(r.status));
-      if (active) renderActiveRide(active);
+      var activeStatuses = ['searching','accepted','driver_arrived','in_progress'];
+      var active = rides.find(function(r){ return activeStatuses.indexOf(r.status) !== -1; });
+      if (active) {
+        renderActiveRide(active);
+        startPaxRidePoll(active._id);
+      } else {
+        stopPaxRidePoll();
+        stopPaxChat();
+        destroyPaxMap();
+        currentActiveRideId = null;
+      }
     }
 
     function renderRideList(rides, containerId) {
-      const el = document.getElementById(containerId);
+      var el = document.getElementById(containerId);
       if (!rides.length) {
         el.innerHTML = '<div class="empty-msg">No rides yet. <a href="booking.html" class="link">Book your first ride →</a></div>';
         return;
       }
-      el.innerHTML = rides.map(r => `
-        <div class="ride-card">
-          <div class="rc-route">
-            <span class="rc-from">📍 ${r.pickup?.address || '—'}</span>
-            <span class="rc-arrow">→</span>
-            <span class="rc-to">🏁 ${r.destination?.address || '—'}</span>
-          </div>
-          <div class="rc-meta">
-            <span class="rc-date">${new Date(r.createdAt).toLocaleDateString('en-PK', {day:'numeric',month:'short',year:'numeric'})}</span>
-            <span class="rc-dist">${r.distanceKm} km</span>
-            <span class="rc-price">Rs. ${r.finalPrice || r.offeredPrice || '—'}</span>
-            <span class="rc-status status-${r.status}">${r.status.replace('_',' ')}</span>
-          </div>
-          ${r.driver ? `<div class="rc-driver">🚗 ${r.driver.fullName || '—'} · ⭐ ${r.driver.rating?.average || '—'}</div>` : ''}
-        </div>
-      `).join('');
+      el.innerHTML = rides.map(function(r) {
+        var fromAddr = (r.pickup && r.pickup.address) || '—';
+        var toAddr   = (r.destination && r.destination.address) || '—';
+        var dateStr  = new Date(r.createdAt).toLocaleDateString('en-PK', {day:'numeric',month:'short',year:'numeric'});
+        var driverStr = r.driver
+          ? '<div class="rc-driver">🚗 ' + (r.driver.fullName||'—') + ' · ⭐ ' + ((r.driver.rating&&r.driver.rating.average)||'—') + '</div>'
+          : '';
+        return '<div class="ride-card">' +
+          '<div class="rc-route">' +
+            '<span class="rc-from">📍 ' + fromAddr + '</span>' +
+            '<span class="rc-arrow">→</span>' +
+            '<span class="rc-to">🏁 ' + toAddr + '</span>' +
+          '</div>' +
+          '<div class="rc-meta">' +
+            '<span class="rc-date">' + dateStr + '</span>' +
+            '<span class="rc-dist">' + r.distanceKm + ' km</span>' +
+            '<span class="rc-price">Rs. ' + (r.finalPrice||r.offeredPrice||'—') + '</span>' +
+            '<span class="rc-status status-' + r.status + '">' + r.status.replace('_',' ') + '</span>' +
+          '</div>' + driverStr +
+        '</div>';
+      }).join('');
     }
 
+    // ===== MAP HELPERS =====
+    function destroyPaxMap() {
+      if (paxMap) { paxMap.remove(); paxMap = null; }
+      paxPickupMarker = null;
+      paxDestMarker   = null;
+      paxDriverMarker = null;
+      paxRouteLayer   = null;
+    }
+
+    function getCoords(loc) {
+      if (!loc) return null;
+      if (loc.lat !== undefined && loc.lng !== undefined) return { lat: Number(loc.lat), lng: Number(loc.lng) };
+      if (loc.coordinates) {
+        if (Array.isArray(loc.coordinates)) return { lat: Number(loc.coordinates[1]), lng: Number(loc.coordinates[0]) };
+        if (loc.coordinates.lat !== undefined) return { lat: Number(loc.coordinates.lat), lng: Number(loc.coordinates.lng) };
+      }
+      return null;
+    }
+
+    function initPaxMap(ride) {
+      var mapEl = document.getElementById('pax-ride-map');
+      if (!mapEl) return;
+      destroyPaxMap();
+
+      var pickup = getCoords(ride.pickup);
+      var dest   = getCoords(ride.destination);
+      var centerLat = pickup ? pickup.lat : 33.1495;
+      var centerLng = pickup ? pickup.lng : 73.7517;
+
+      paxMap = L.map('pax-ride-map', { zoomControl: true }).setView([centerLat, centerLng], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 18
+      }).addTo(paxMap);
+
+      if (pickup) {
+        var pickupIcon = L.divIcon({ className:'',
+          html: '<div style="background:#e74c3c;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+          iconSize:[14,14], iconAnchor:[7,7] });
+        paxPickupMarker = L.marker([pickup.lat,pickup.lng],{icon:pickupIcon}).addTo(paxMap).bindPopup('📍 <strong>Pickup</strong>');
+      }
+
+      if (dest) {
+        var destIcon = L.divIcon({ className:'',
+          html: '<div style="background:#27ae60;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+          iconSize:[14,14], iconAnchor:[7,7] });
+        paxDestMarker = L.marker([dest.lat,dest.lng],{icon:destIcon}).addTo(paxMap).bindPopup('🏁 <strong>Destination</strong>');
+      }
+
+      if (pickup && dest) {
+        paxMap.fitBounds([[pickup.lat,pickup.lng],[dest.lat,dest.lng]], {padding:[30,30]});
+        drawPaxRoute(pickup, dest);
+      }
+
+      if (ride.driver && ride.driver.location) {
+        var dLoc = ride.driver.location;
+        var dLat = dLoc.lat || (Array.isArray(dLoc.coordinates) ? dLoc.coordinates[1] : undefined);
+        var dLng = dLoc.lng || (Array.isArray(dLoc.coordinates) ? dLoc.coordinates[0] : undefined);
+        if (dLat && dLng) updateDriverMarker(Number(dLat), Number(dLng));
+      }
+    }
+
+    function drawPaxRoute(from, to) {
+      var valhallaUrl = 'https://valhalla1.openstreetmap.de/route?json=' +
+        encodeURIComponent(JSON.stringify({
+          locations:[{lon:from.lng,lat:from.lat},{lon:to.lng,lat:to.lat}],
+          costing:'auto', directions_options:{units:'km'}
+        }));
+      fetch(valhallaUrl)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          if (d.trip && d.trip.legs && d.trip.legs[0]) {
+            var coords = decodePolyline(d.trip.legs[0].shape);
+            if (paxRouteLayer) paxMap.removeLayer(paxRouteLayer);
+            paxRouteLayer = L.polyline(coords,{color:'#ff6b00',weight:4,opacity:0.75}).addTo(paxMap);
+          }
+        })
+        .catch(function(){
+          fetch('https://router.project-osrm.org/route/v1/driving/'+from.lng+','+from.lat+';'+to.lng+','+to.lat+'?overview=full&geometries=geojson')
+            .then(function(r){return r.json();})
+            .then(function(d){
+              if (d.routes && d.routes[0] && d.routes[0].geometry) {
+                var coords = d.routes[0].geometry.coordinates.map(function(c){return [c[1],c[0]];});
+                if (paxRouteLayer) paxMap.removeLayer(paxRouteLayer);
+                paxRouteLayer = L.polyline(coords,{color:'#ff6b00',weight:4,opacity:0.75}).addTo(paxMap);
+              }
+            })
+            .catch(function(){
+              if (paxRouteLayer) paxMap.removeLayer(paxRouteLayer);
+              paxRouteLayer = L.polyline([[from.lat,from.lng],[to.lat,to.lng]],{color:'#ff6b00',weight:3,dashArray:'6 4',opacity:0.7}).addTo(paxMap);
+            });
+        });
+    }
+
+    function decodePolyline(encoded) {
+      var coords=[],index=0,len=encoded.length,lat=0,lng=0;
+      while(index<len){
+        var b,shift=0,result=0;
+        do{b=encoded.charCodeAt(index++)-63;result|=(b&0x1f)<<shift;shift+=5;}while(b>=0x20);
+        lat+=((result&1)?~(result>>1):(result>>1));
+        shift=0;result=0;
+        do{b=encoded.charCodeAt(index++)-63;result|=(b&0x1f)<<shift;shift+=5;}while(b>=0x20);
+        lng+=((result&1)?~(result>>1):(result>>1));
+        coords.push([lat*1e-6,lng*1e-6]);
+      }
+      return coords;
+    }
+
+    function updateDriverMarker(dLat, dLng) {
+      if (!paxMap) return;
+      var driverIcon = L.divIcon({ className:'',
+        html:'<div style="background:#2980b9;width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+        iconSize:[18,18], iconAnchor:[9,9] });
+      if (paxDriverMarker) { paxDriverMarker.setLatLng([dLat,dLng]); }
+      else { paxDriverMarker = L.marker([dLat,dLng],{icon:driverIcon}).addTo(paxMap).bindPopup('🔵 <strong>Your Driver</strong>'); }
+    }
+
+    // ===== RIDE STATUS POLL =====
+    function startPaxRidePoll(rideId) {
+      stopPaxRidePoll();
+      currentActiveRideId = rideId;
+      paxRidePollInterval = setInterval(function(){
+        fetch(API_BASE+'/api/rides/'+rideId+'/status', {headers:authHeaders()})
+          .then(function(r){return r.json();})
+          .then(function(data){
+            if (!data.success || !data.ride) return;
+            var ride = data.ride;
+
+            if (ride.status === 'cancelled') {
+              stopPaxRidePoll(); stopPaxChat(); destroyPaxMap();
+              currentActiveRideId = null;
+              if ((ride.cancelledBy||'driver') === 'driver') {
+                var dName  = (ride.driver && ride.driver.fullName) || '—';
+                var dPhone = (ride.driver && ride.driver.phone)    || '—';
+                var reason = ride.cancelReason || 'No reason provided';
+                document.getElementById('driver-cancel-details').innerHTML =
+                  '<div><strong>🚗 Driver:</strong> '+dName+'</div>'+
+                  '<div><strong>📞 Phone:</strong> <a href="tel:'+dPhone+'">'+dPhone+'</a></div>'+
+                  '<div><strong>❌ Reason:</strong> '+reason+'</div>';
+                document.getElementById('driver-cancel-modal').classList.add('show');
+              }
+              loadRides(); return;
+            }
+
+            if (ride.status === 'completed') {
+              stopPaxRidePoll(); stopPaxChat(); destroyPaxMap();
+              currentActiveRideId = null;
+              loadRides(); return;
+            }
+
+            // Update driver location dot
+            if (ride.driver && ride.driver.location) {
+              var loc  = ride.driver.location;
+              var dLat = loc.lat || (Array.isArray(loc.coordinates) ? loc.coordinates[1] : undefined);
+              var dLng = loc.lng || (Array.isArray(loc.coordinates) ? loc.coordinates[0] : undefined);
+              if (dLat && dLng) updateDriverMarker(Number(dLat), Number(dLng));
+            }
+
+            // Update status bar
+            var etaEl = document.getElementById('pax-eta-bar');
+            if (etaEl) {
+              var labels = {
+                searching:      '🔍 Looking for a driver...',
+                accepted:       '✅ Driver accepted! On the way to you.',
+                driver_arrived: '📍 Driver is at your pickup!',
+                in_progress:    '🚗 Ride in progress...'
+              };
+              etaEl.textContent = labels[ride.status] || ride.status;
+            }
+
+            // If map not yet shown (e.g. ride just became accepted), render it
+            if (!paxMap && (ride.status==='accepted'||ride.status==='driver_arrived'||ride.status==='in_progress')) {
+              renderActiveRide(ride);
+            }
+          })
+          .catch(function(){});
+      }, 5000);
+    }
+
+    function stopPaxRidePoll() {
+      if (paxRidePollInterval) { clearInterval(paxRidePollInterval); paxRidePollInterval = null; }
+    }
+
+    // ===== CHAT =====
+    function startPaxChat(rideId) {
+      stopPaxChat();
+      paxSeenMsgIds = {};
+      pollPaxMessages(rideId);
+      paxChatInterval = setInterval(function(){ pollPaxMessages(rideId); }, 5000);
+    }
+
+    function stopPaxChat() {
+      if (paxChatInterval) { clearInterval(paxChatInterval); paxChatInterval = null; }
+    }
+
+    function pollPaxMessages(rideId) {
+      fetch(API_BASE+'/api/rides/'+rideId+'/messages', {headers:authHeaders()})
+        .then(function(r){return r.json();})
+        .then(function(data){
+          if (!data.success || !data.messages) return;
+          data.messages.forEach(function(msg){
+            var ts  = msg.createdAt || msg.sentAt || null;
+            var key = msg._id || (msg.senderType+'|'+msg.text+'|'+ts);
+            if (paxSeenMsgIds[key]) return;
+            paxSeenMsgIds[key] = true;
+            if (msg.senderType !== 'passenger') {
+              appendPaxBubble({ text:msg.text, senderType:msg.senderType, sentAt:ts }, false);
+            }
+          });
+        })
+        .catch(function(){});
+    }
+
+    function sendPaxMessage() {
+      var input = document.getElementById('pax-chat-input');
+      var text  = input ? input.value.trim() : '';
+      if (!text || !currentActiveRideId) return;
+      input.value = '';
+      var nowIso = new Date().toISOString();
+      paxSeenMsgIds['passenger|'+text+'|'+nowIso] = true;
+      appendPaxBubble({ text:text, senderType:'passenger', sentAt:nowIso }, true);
+      fetch(API_BASE+'/api/rides/'+currentActiveRideId+'/messages', {
+        method:'POST', headers:authHeaders(),
+        body: JSON.stringify({ text:text, senderType:'passenger' })
+      }).catch(function(){});
+    }
+
+    function appendPaxBubble(msg, isMine) {
+      var box = document.getElementById('pax-chat-messages');
+      if (!box) return;
+      var ts   = msg.createdAt || msg.sentAt || null;
+      var time = '';
+      if (ts) { var d = new Date(ts); if (!isNaN(d.getTime())) time = d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+      var div = document.createElement('div');
+      div.className = 'pax-chat-bubble '+(isMine?'me':'them');
+      div.innerHTML = msg.text+'<div class="bubble-time">'+time+'</div>';
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // ===== RENDER ACTIVE RIDE =====
     function renderActiveRide(ride) {
-      document.getElementById('active-ride-content').innerHTML = `
-        <div class="active-card">
-          <div class="ac-status ac-${ride.status}">
-            ${{
-              searching:      '🔍 Looking for a driver...',
-              accepted:       '✅ Driver accepted! On the way.',
-              driver_arrived: '📍 Driver is at your pickup!',
-              in_progress:    '🚗 Ride in progress...'
-            }[ride.status] || ride.status}
-          </div>
-          <div class="ac-route">
-            <div>📍 <b>From:</b> ${ride.pickup?.address}</div>
-            <div>🏁 <b>To:</b> ${ride.destination?.address}</div>
-          </div>
-          <div class="ac-price">Offered: <b>Rs. ${ride.offeredPrice}</b>  Final: <b>${ride.finalPrice ? 'Rs. '+ride.finalPrice : 'TBD'}</b></div>
-          ${ride.driver ? `
-            <div class="ac-driver">
-              <span>🚗</span>
-              <div>
-                <b>${ride.driver.fullName}</b><br/>
-                <small>${ride.driver.vehicle?.make} ${ride.driver.vehicle?.model} · ${ride.driver.vehicle?.plate}</small><br/>
-                <small>📞 ${ride.driver.phone}</small>
-              </div>
-              <span class="ac-rating">⭐ ${ride.driver.rating?.average}</span>
-            </div>
-          ` : ''}
-          <button class="btn-back" style="margin-top:12px" onclick="cancelRide('${ride._id}')">✕ Cancel Ride</button>
-        </div>
-      `;
+      var hasDriver = ride.status==='accepted'||ride.status==='driver_arrived'||ride.status==='in_progress';
+      var labels = {
+        searching:      '🔍 Looking for a driver...',
+        accepted:       '✅ Driver accepted! On the way to you.',
+        driver_arrived: '📍 Driver is at your pickup!',
+        in_progress:    '🚗 Ride in progress...'
+      };
+
+      var driverHtml = '';
+      if (ride.driver && hasDriver) {
+        var veh = ride.driver.vehicle || {};
+        driverHtml =
+          '<div class="ac-driver" style="display:flex;align-items:center;gap:12px;background:#f5f5f5;border-radius:10px;padding:12px;margin-bottom:12px">' +
+            '<span style="font-size:2rem">🚗</span>' +
+            '<div style="flex:1"><b>'+(ride.driver.fullName||'—')+'</b><br/>' +
+              '<small>'+(veh.make||'')+' '+(veh.model||'')+' · '+(veh.plate||'—')+'</small><br/>' +
+              '<small>📞 <a href="tel:'+(ride.driver.phone||'')+'">'+(ride.driver.phone||'—')+'</a></small></div>' +
+            '<span class="ac-rating">⭐ '+((ride.driver.rating&&ride.driver.rating.average)||'—')+'</span>' +
+          '</div>';
+      }
+
+      var chatHtml = '';
+      if (hasDriver) {
+        chatHtml =
+          '<div class="pax-chat-panel"><h4>💬 Chat with Driver</h4>' +
+            '<div id="pax-chat-messages"></div>' +
+            '<div class="pax-chat-input-row">' +
+              '<input type="text" id="pax-chat-input" placeholder="Type a message..." onkeydown="if(event.key===\'Enter\')sendPaxMessage()" />' +
+              '<button onclick="sendPaxMessage()">Send</button>' +
+            '</div></div>';
+      }
+
+      var legendHtml = hasDriver
+        ? '<div class="pax-map-legend"><span><span class="leg-dot" style="background:#e74c3c"></span>Pickup</span><span><span class="leg-dot" style="background:#27ae60"></span>Destination</span><span><span class="leg-dot" style="background:#2980b9"></span>Driver</span></div>'
+        : '<div class="pax-map-legend"><span><span class="leg-dot" style="background:#e74c3c"></span>Pickup</span><span><span class="leg-dot" style="background:#27ae60"></span>Destination</span></div>';
+
+      document.getElementById('active-ride-content').innerHTML =
+        '<div class="active-card">' +
+          '<div id="pax-eta-bar">'+(labels[ride.status]||ride.status)+'</div>' +
+          legendHtml +
+          '<div id="pax-ride-map"></div>' +
+          '<div class="ac-route" style="margin-bottom:10px">' +
+            '<div>📍 <b>From:</b> '+((ride.pickup&&ride.pickup.address)||'—')+'</div>' +
+            '<div>🏁 <b>To:</b> '+((ride.destination&&ride.destination.address)||'—')+'</div>' +
+          '</div>' +
+          '<div class="ac-price" style="margin-bottom:12px">Offered: <b>Rs. '+(ride.offeredPrice||'—')+'</b>  Final: <b>'+(ride.finalPrice?'Rs. '+ride.finalPrice:'TBD')+'</b></div>' +
+          driverHtml + chatHtml +
+          '<button class="btn-back" style="margin-top:12px" onclick="cancelRide(\''+ride._id+'\')">✕ Cancel Ride</button>' +
+        '</div>';
+
+      setTimeout(function(){ initPaxMap(ride); }, 150);
+      if (hasDriver) startPaxChat(ride._id);
     }
 
+    // ===== CANCEL RIDE =====
     async function cancelRide(rideId) {
       if (!confirm('Are you sure you want to cancel this ride?')) return;
-      const data = await API.put(`/api/rides/${rideId}/cancel`, {});
-      if (data.success) { alert('Ride cancelled.'); loadRides(); }
-      else alert(data.message || 'Could not cancel.');
+      stopPaxRidePoll(); stopPaxChat(); destroyPaxMap();
+      currentActiveRideId = null;
+      var data = await API.put('/api/rides/'+rideId+'/cancel', {});
+      if (data.success) { alert('Ride cancelled.'); }
+      else { alert(data.message || 'Could not cancel.'); }
+      loadRides();
+    }
+
+    function closeDriverCancelModal() {
+      document.getElementById('driver-cancel-modal').classList.remove('show');
+      window.location.href = 'booking.html';
     }
 
     // ===== SECTION SWITCHER =====
     function showSection(name, el) {
-      document.querySelectorAll('.dsection').forEach(s => s.classList.add('hidden'));
-      document.querySelectorAll('.snav-item').forEach(a => a.classList.remove('active'));
-      document.getElementById('sec-' + name).classList.remove('hidden');
+      document.querySelectorAll('.dsection').forEach(function(s){ s.classList.add('hidden'); });
+      document.querySelectorAll('.snav-item').forEach(function(a){ a.classList.remove('active'); });
+      document.getElementById('sec-'+name).classList.remove('hidden');
       if (el) el.classList.add('active');
     }
 
-    // ===== PROFILE UPDATE =====
+    // ===== PROFILE =====
     async function updateProfile() {
-      const data = await API.put('/api/users/profile', {
+      var data = await API.put('/api/users/profile', {
         name:  document.getElementById('p-name').value,
         email: document.getElementById('p-email').value
       });
@@ -282,7 +748,7 @@
     }
 
     async function changePassword() {
-      const data = await API.put('/api/users/change-password', {
+      var data = await API.put('/api/users/change-password', {
         currentPassword: document.getElementById('old-pw').value,
         newPassword:     document.getElementById('new-pw').value
       });
@@ -290,6 +756,7 @@
     }
 
     function logout() {
+      stopPaxRidePoll(); stopPaxChat(); destroyPaxMap();
       localStorage.clear();
       window.location.href = 'login.html';
     }

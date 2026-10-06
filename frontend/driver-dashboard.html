@@ -1280,7 +1280,6 @@
           '</div>' +
           '<div class="co-actions">' +
             '<button class="btn-co-accept" onclick="respondCounterOffer(\'' + ride._id + '\',\'accept\')">✅ Accept Rs ' + Math.round(counterAmt) + '</button>' +
-            '<button class="btn-co-reject" onclick="respondCounterOffer(\'' + ride._id + '\',\'reject\')">❌ Reject</button>' +
           '</div>' +
         '</div>';
     }
@@ -2089,8 +2088,8 @@
 
           if (isPassenger && activeRide) {
             // Show prominent modal with full passenger details
-            var pName  = activeRide.passengerName  || 'Passenger';
-            var pPhone = activeRide.passengerPhone || '—';
+            var pName  = (activeRide.passenger && activeRide.passenger.name)  || activeRide.passengerName  || 'Passenger';
+            var pPhone = (activeRide.passenger && activeRide.passenger.phone) || activeRide.passengerPhone || '—';
             var pDest  = (activeRide.destination && activeRide.destination.address) || '—';
             var pVtype = activeRide.vehicleType || 'car';
             var detailsEl = document.getElementById('pax-cancel-details');
