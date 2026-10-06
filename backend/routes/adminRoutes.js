@@ -1,7 +1,6 @@
 // routes/adminRoutes.js
 const express = require('express');
 const router  = express.Router();
-const jwt     = require('jsonwebtoken');
 const {
   adminLogin, getDashboardStats,
   getAllDrivers, getDriverDetail, approveDriver, rejectDriver, suspendDriver, deleteDriver,
@@ -9,54 +8,19 @@ const {
   getAllRides, changeAdminPassword, getActivity,
   getPendingSubscriptions, reviewSubscription
 } = require('../controllers/adminController');
+const { protect } = require('../middleware/auth');
 
-// ── Admin JWT middleware ───────────────────────────────────────────────────────
-// Reads Authorization: Bearer <token>, verifies role === 'admin'
-// Does NOT use the passenger/driver 'protect' middleware — admin tokens are separate
-const requireAdmin = (req, res, next) => {
-  const auth  = req.headers.authorization || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'Admin token required.' });
-  }
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Not authorised as admin.' });
-    }
-    req.admin = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired admin token.' });
-  }
+// Admin-only middleware
+const adminOnly = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') return next();
+  res.status(403).json({ message: 'Admin access only.' });
 };
 
-// ── POST /api/admin/verify  (public — no token needed) ───────────────────────
-// Admin dashboard calls this with the password → returns signed admin JWT
-router.post('/verify', (req, res) => {
-  const { password } = req.body;
-  if (!password) {
-    return res.status(400).json({ success: false, message: 'Password is required.' });
-  }
-  if (!process.env.ADMIN_PASSWORD) {
-    return res.status(500).json({ success: false, message: 'ADMIN_PASSWORD not set on server.' });
-  }
-  if (password !== process.env.ADMIN_PASSWORD) {
-    return res.status(403).json({ success: false, message: 'Incorrect admin password.' });
-  }
-  const token = jwt.sign(
-    { role: 'admin' },
-    process.env.JWT_SECRET,
-    { expiresIn: '8h' }
-  );
-  return res.json({ success: true, token });
-});
-
-// ── POST /api/admin/login  (kept for backward compatibility) ──────────────────
+// Public
 router.post('/login', adminLogin);
 
-// ── All routes below this line require a valid admin JWT ──────────────────────
-router.use(requireAdmin);
+// Protected (must be logged in as admin)
+router.use(protect, adminOnly);
 
 router.get('/stats',    getDashboardStats);
 router.get('/activity', getActivity);
@@ -67,19 +31,19 @@ router.get('/drivers/:id',                getDriverDetail);
 router.put('/drivers/:id/approve',        approveDriver);
 router.put('/drivers/:id/reject',         rejectDriver);
 router.put('/drivers/:id/suspend',        suspendDriver);
-router.put('/drivers/:id/subscription',   reviewSubscription);
 router.delete('/drivers/:id',             deleteDriver);
 
+// Subscriptions
+router.get('/subscriptions/pending',      getPendingSubscriptions);
+router.put('/drivers/:id/subscription',   reviewSubscription);
+
 // Passengers
-router.get('/passengers',              getAllPassengers);
-router.put('/passengers/:id/freeze',   freezePassenger);
-router.delete('/passengers/:id',       deletePassenger);
+router.get('/passengers',                 getAllPassengers);
+router.put('/passengers/:id/freeze',      freezePassenger);
+router.delete('/passengers/:id',          deletePassenger);
 
 // Rides
 router.get('/rides', getAllRides);
-
-// Subscriptions
-router.get('/subscriptions/pending', getPendingSubscriptions);
 
 // Settings
 router.put('/change-password', changeAdminPassword);

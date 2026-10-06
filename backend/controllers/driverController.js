@@ -139,6 +139,20 @@ const toggleOnline = async (req, res) => {
       return res.status(403).json({ message: 'Your account must be approved before going online.' });
     }
 
+    // ── Subscription check — only block going ONLINE; going offline is always allowed ──
+    const goingOnline = !driver.isOnline;
+    if (goingOnline) {
+      const sub = driver.subscription || {};
+      const hasActiveSub = sub.isActive && sub.paymentStatus === 'approved';
+      if (!hasActiveSub) {
+        return res.json({
+          success:              false,
+          requiresSubscription: true,
+          message:              'Please subscribe and wait for admin approval before going online.'
+        });
+      }
+    }
+
     driver.isOnline = !driver.isOnline;
     await driver.save();
 
@@ -233,18 +247,45 @@ const updateLocation = async (req, res) => {
   }
 };
 
+// ── Vehicle tier → price mapping ──────────────────────────────────────────
+// Prices are per vehicle type. The dashboard uses this to show the correct
+// price for the driver's own vehicle tier and to show a 3-column plan grid.
+const TIER_PRICES = {
+  motorbike: { monthly: 1000,  yearly: 10000 },
+  rickshaw:  { monthly: 2000,  yearly: 20000 },
+  car:       { monthly: 3000,  yearly: 30000 }
+};
+
+// Derive the tier key from the driver's vehicle type string
+function getTierKey(vehicleType) {
+  if (!vehicleType) return 'car';
+  const t = vehicleType.toLowerCase();
+  if (t === 'motorbike' || t === 'motorcycle' || t === 'bike') return 'motorbike';
+  if (t === 'rickshaw') return 'rickshaw';
+  return 'car'; // car, sedan, suv, etc.
+}
+
 // =====================
 //  GET SUBSCRIPTION PLANS
 //  GET /api/drivers/subscription/plans
 // =====================
 const getSubscriptionPlans = async (req, res) => {
-  res.json({
-    success: true,
-    plans: [
-      { id: 'monthly', name: 'Monthly Plan', price: 1500, duration: 30,  description: 'Access for 30 days' },
-      { id: 'yearly',  name: 'Yearly Plan',  price: 15000, duration: 365, description: 'Access for 365 days — save 17%' }
-    ]
-  });
+  try {
+    // Load the driver so we can determine their vehicle tier
+    const driver = await Driver.findById(req.user._id).select('vehicle');
+    const vehicleType = driver && driver.vehicle && driver.vehicle.type;
+    const tierKey     = getTierKey(vehicleType);
+    const prices      = TIER_PRICES[tierKey] || TIER_PRICES.car;
+
+    res.json({
+      success:     true,
+      vehicleTier: tierKey,
+      prices,                // { monthly: N, yearly: N } for this driver's tier
+      allTiers:    TIER_PRICES  // full grid so the dashboard can render all 3 cards
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
+  }
 };
 
 // =====================
@@ -273,11 +314,19 @@ const submitSubscriptionProof = async (req, res) => {
 
     const proofImage = req.file ? req.file.filename : '';
 
-    driver.subscription.plan          = plan || 'monthly';
+    // Determine tier + amount from this driver's vehicle type
+    const tierKey = getTierKey(driver.vehicle && driver.vehicle.type);
+    const prices  = TIER_PRICES[tierKey] || TIER_PRICES.car;
+    const chosenPlan = (plan === 'yearly') ? 'yearly' : 'monthly';
+    const amount  = prices[chosenPlan];
+
+    driver.subscription.plan          = chosenPlan;
     driver.subscription.paymentStatus = 'pending';
     driver.subscription.submittedAt   = new Date();
     driver.subscription.proofImage    = proofImage;
     driver.subscription.paymentMethod = paymentMethod || '';
+    driver.subscription.vehicleTier   = tierKey;
+    driver.subscription.amount        = amount;
     await driver.save();
 
     const {
@@ -292,7 +341,11 @@ const submitSubscriptionProof = async (req, res) => {
       console.error('sendAdminSubscriptionNotification failed:', err.message)
     );
 
-    res.json({ success: true, message: 'Payment proof submitted. We will review within a few hours.' });
+    res.json({
+      success: true,
+      message: 'Payment proof submitted. We will review within a few hours.',
+      amount
+    });
   } catch (error) {
     console.error('submitSubscriptionProof error:', error);
     res.status(500).json({ message: 'Server error.' });
