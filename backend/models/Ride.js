@@ -1,51 +1,51 @@
 // =====================================================
-//  models/Ride.js  —  Ride / Trip schema  (fix11)
+//  models/Ride.js
 // =====================================================
 
 const mongoose = require('mongoose');
 
+const messageSchema = new mongoose.Schema({
+  text:       { type: String, required: true },
+  senderType: { type: String, enum: ['passenger', 'driver'], default: 'passenger' },
+  createdAt:  { type: Date, default: Date.now }
+}, { _id: false });
+
 const rideSchema = new mongoose.Schema({
 
-  // Who booked
   passenger: {
     type: mongoose.Schema.Types.ObjectId,
-    ref:  'User',
+    ref: 'User',
     required: true
   },
 
-  // Who drives (assigned when driver accepts)
   driver: {
     type: mongoose.Schema.Types.ObjectId,
-    ref:  'Driver',
+    ref: 'Driver',
     default: null
   },
 
-  // Pickup location
   pickup: {
-    address: { type: String, required: true },
+    address:     { type: String, required: true },
     coordinates: {
       lat: { type: Number, required: true },
       lng: { type: Number, required: true }
     }
   },
 
-  // Destination
   destination: {
-    address: { type: String, required: true },
+    address:     { type: String, required: true },
     coordinates: {
       lat: { type: Number, required: true },
       lng: { type: Number, required: true }
     }
   },
 
-  // Vehicle requested by passenger: motorbike | rickshaw | car
   vehicleType: {
     type: String,
-    enum: ['motorbike', 'rickshaw', 'car'],
-    required: true
+    enum: ['car', 'motorbike', 'rickshaw'],
+    default: 'car'
   },
 
-  // Ride category (kept for compatibility)
   rideType: {
     type: String,
     enum: ['economy', 'comfort', 'intercity'],
@@ -56,9 +56,9 @@ const rideSchema = new mongoose.Schema({
   durationMin: { type: Number, default: 0 },
 
   // Price negotiation
-  offeredPrice: { type: Number, required: true },  // passenger's initial offer
-  counterPrice: { type: Number, default: null },    // passenger counter-offer
-  finalPrice:   { type: Number, default: null },    // agreed final price
+  offeredPrice: { type: Number, required: true },
+  counterOffer: { type: Number, default: null },  // passenger's lower offer
+  finalPrice:   { type: Number, default: null },  // agreed price
 
   paymentMethod: {
     type: String,
@@ -71,37 +71,24 @@ const rideSchema = new mongoose.Schema({
     default: 'pending'
   },
 
-  // Ride lifecycle status
   status: {
     type: String,
     enum: ['searching', 'accepted', 'driver_arrived', 'in_progress', 'completed', 'cancelled'],
     default: 'searching'
   },
 
-  // Passenger info (cached so admin/driver sees it even without a User account)
-  passengerName:  { type: String, default: '' },
-  passengerPhone: { type: String, default: '' },
-
-  // Timestamps
   acceptedAt:  { type: Date, default: null },
   startedAt:   { type: Date, default: null },
   completedAt: { type: Date, default: null },
   cancelledAt: { type: Date, default: null },
-  cancelledBy: { type: String, default: null },   // 'passenger' or 'driver'
-  cancelReason:{ type: String, default: '' },
+  cancelledBy: { type: String, default: null },
 
-  // Ratings
   passengerRating: { type: Number, min: 1, max: 5, default: null },
   driverRating:    { type: Number, min: 1, max: 5, default: null },
   passengerReview: { type: String, default: '' },
   driverReview:    { type: String, default: '' },
 
-  // In-ride chat messages
-  messages: [{
-    senderType: { type: String, enum: ['passenger', 'driver'], required: true },
-    text:       { type: String, required: true, maxlength: 500 },
-    sentAt:     { type: Date,   default: Date.now }
-  }]
+  messages: [messageSchema]
 
 }, { timestamps: true });
 
