@@ -459,17 +459,17 @@
       setLoading(true);
 
       try {
-        var res = await fetch(API + '/drivers/login', {
+        var res = await fetch(API + '/auth/login', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ phone: phone, password: password })
+          body:    JSON.stringify({ phone: phone, password: password, role: 'driver' })
         });
 
         var data = await res.json();
 
         if (res.ok && data.success) {
           localStorage.setItem('driverToken', data.token);
-          localStorage.setItem('driverInfo', JSON.stringify(data.driver));
+          localStorage.setItem('driverInfo', JSON.stringify(data.user));
 
           showToast('✅ Login successful! Redirecting…', false);
 
