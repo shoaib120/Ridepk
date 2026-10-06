@@ -10,7 +10,6 @@ const router     = express.Router();
 const { protect } = require('../middleware/auth');
 const {
   registerDriver,
-  loginDriver,
   getProfile,
   toggleOnline,
   getNearbyDrivers,
@@ -39,7 +38,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB per file
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: function (req, file, cb) {
     const allowed = /jpg|jpeg|png|pdf/i;
     const ext = path.extname(file.originalname);
@@ -48,7 +47,6 @@ const upload = multer({
   }
 });
 
-// Document upload fields
 const docFields = upload.fields([
   { name: 'cnic-front',    maxCount: 1 },
   { name: 'cnic-back',     maxCount: 1 },
@@ -58,7 +56,6 @@ const docFields = upload.fields([
   { name: 'vehicle-photo', maxCount: 1 }
 ]);
 
-// ── Multer error handler ──────────────────────────────────────────────
 function handleMulterError(err, req, res, next) {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
@@ -76,7 +73,6 @@ function handleMulterError(err, req, res, next) {
 
 // Public
 router.post('/register', docFields, handleMulterError, registerDriver);
-router.post('/login',    loginDriver);
 router.get('/nearby',    getNearbyDrivers);
 
 // Protected (require driver JWT)
@@ -87,7 +83,7 @@ router.get('/earnings',             protect, getEarnings);
 router.get('/subscription',         protect, getSubscriptionStatus);
 router.get('/subscription/plans',   protect, getSubscriptionPlans);
 
-// Subscription proof upload (single file: screenshot/receipt)
+// Subscription proof upload
 router.post('/subscription/submit', protect,
   upload.single('proof'),
   handleMulterError,

@@ -216,4 +216,97 @@ const getEarnings = async (req, res) => {
   }
 };
 
-module.exports = { registerDriver, getProfile, toggleOnline, getNearbyDrivers, getEarnings };
+// =====================
+//  UPDATE DRIVER LOCATION
+//  PUT /api/drivers/location
+// =====================
+const updateLocation = async (req, res) => {
+  try {
+    const { lat, lng } = req.body;
+    if (!lat || !lng) return res.status(400).json({ message: 'lat and lng are required.' });
+    await Driver.findByIdAndUpdate(req.user._id, {
+      location: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// =====================
+//  GET SUBSCRIPTION PLANS
+//  GET /api/drivers/subscription/plans
+// =====================
+const getSubscriptionPlans = async (req, res) => {
+  res.json({
+    success: true,
+    plans: [
+      { id: 'monthly', name: 'Monthly Plan', price: 1500, duration: 30,  description: 'Access for 30 days' },
+      { id: 'yearly',  name: 'Yearly Plan',  price: 15000, duration: 365, description: 'Access for 365 days — save 17%' }
+    ]
+  });
+};
+
+// =====================
+//  GET SUBSCRIPTION STATUS
+//  GET /api/drivers/subscription
+// =====================
+const getSubscriptionStatus = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.user._id).select('subscription fullName');
+    if (!driver) return res.status(404).json({ message: 'Driver not found.' });
+    res.json({ success: true, subscription: driver.subscription });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// =====================
+//  SUBMIT SUBSCRIPTION PROOF
+//  POST /api/drivers/subscription/submit
+// =====================
+const submitSubscriptionProof = async (req, res) => {
+  try {
+    const { plan, paymentMethod } = req.body;
+    const driver = await Driver.findById(req.user._id);
+    if (!driver) return res.status(404).json({ message: 'Driver not found.' });
+
+    const proofImage = req.file ? req.file.filename : '';
+
+    driver.subscription.plan          = plan || 'monthly';
+    driver.subscription.paymentStatus = 'pending';
+    driver.subscription.submittedAt   = new Date();
+    driver.subscription.proofImage    = proofImage;
+    driver.subscription.paymentMethod = paymentMethod || '';
+    await driver.save();
+
+    const {
+      sendDriverSubscriptionReceived,
+      sendAdminSubscriptionNotification
+    } = require('../config/mailer');
+
+    sendDriverSubscriptionReceived(driver).catch(err =>
+      console.error('sendDriverSubscriptionReceived failed:', err.message)
+    );
+    sendAdminSubscriptionNotification(driver).catch(err =>
+      console.error('sendAdminSubscriptionNotification failed:', err.message)
+    );
+
+    res.json({ success: true, message: 'Payment proof submitted. We will review within a few hours.' });
+  } catch (error) {
+    console.error('submitSubscriptionProof error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+module.exports = {
+  registerDriver,
+  getProfile,
+  toggleOnline,
+  getNearbyDrivers,
+  getEarnings,
+  updateLocation,
+  getSubscriptionPlans,
+  getSubscriptionStatus,
+  submitSubscriptionProof
+};
