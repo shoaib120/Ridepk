@@ -701,6 +701,7 @@
   // Chat state
   var chatInterval   = null;
   var lastMessageAt  = null;
+  var seenMsgIds     = {};   // dedup: key = msg._id or text+time, value = true
 
   // Cancel modal state
   var selectedReason = '';
@@ -1259,10 +1260,13 @@
   // Build HTML for a single ride card
   function buildRideCardHtml(ride) {
     var vIcon = ride.vehicleType === 'motorbike' ? '🏍️' : ride.vehicleType === 'rickshaw' ? '🛺' : '🚗';
-    var hasCounterOffer = ride.offeredFare && ride.offeredFare < ride.estimatedFare && ride.counterOfferStatus === 'pending';
+    // Backend returns offeredPrice (not estimatedFare); counterOffer is passenger's lower offer
+    var baseFare   = ride.offeredPrice || ride.estimatedFare || 0;
+    var counterAmt = ride.counterOffer || null;
+    var hasCounterOffer = counterAmt && counterAmt < baseFare;
     var fareDisplay = hasCounterOffer
-      ? 'Rs ' + Math.round(ride.offeredFare) + ' <span style="color:var(--muted);font-size:0.85rem;font-weight:400;text-decoration:line-through">Rs ' + Math.round(ride.estimatedFare) + '</span>'
-      : 'Rs ' + Math.round(ride.estimatedFare || 0);
+      ? 'Rs ' + Math.round(counterAmt) + ' <span style="color:var(--muted);font-size:0.85rem;font-weight:400;text-decoration:line-through">Rs ' + Math.round(baseFare) + '</span>'
+      : 'Rs ' + Math.round(baseFare || 0);
 
     var counterOfferHtml = '';
     if (hasCounterOffer) {
@@ -1270,12 +1274,12 @@
         '<div class="counter-offer-banner">' +
           '<div class="co-title">💬 Counter-offer from passenger</div>' +
           '<div class="co-fare-row">' +
-            '<div class="co-fare-item"><div class="cf-lbl">Original</div><div class="cf-val original">Rs ' + Math.round(ride.estimatedFare) + '</div></div>' +
+            '<div class="co-fare-item"><div class="cf-lbl">Original</div><div class="cf-val original">Rs ' + Math.round(baseFare) + '</div></div>' +
             '<div style="display:flex;align-items:center;font-size:1.3rem">→</div>' +
-            '<div class="co-fare-item"><div class="cf-lbl">Offered</div><div class="cf-val offered">Rs ' + Math.round(ride.offeredFare) + '</div></div>' +
+            '<div class="co-fare-item"><div class="cf-lbl">Offered</div><div class="cf-val offered">Rs ' + Math.round(counterAmt) + '</div></div>' +
           '</div>' +
           '<div class="co-actions">' +
-            '<button class="btn-co-accept" onclick="respondCounterOffer(\'' + ride._id + '\',\'accept\')">✅ Accept Rs ' + Math.round(ride.offeredFare) + '</button>' +
+            '<button class="btn-co-accept" onclick="respondCounterOffer(\'' + ride._id + '\',\'accept\')">✅ Accept Rs ' + Math.round(counterAmt) + '</button>' +
             '<button class="btn-co-reject" onclick="respondCounterOffer(\'' + ride._id + '\',\'reject\')">❌ Reject</button>' +
           '</div>' +
         '</div>';
@@ -1436,11 +1440,12 @@
   // ════════════════════════════════════════
 
   function showActiveRide(ride, driver) {
-    var passengerName  = ride.passengerName  || 'Passenger';
-    var passengerPhone = ride.passengerPhone || '—';
-    var fareLabel      = ride.finalPrice && ride.finalPrice !== ride.estimatedFare
+    // passenger is populated object {name, phone} OR fallback to top-level fields
+    var passengerName  = (ride.passenger && ride.passenger.name)  || ride.passengerName  || 'Passenger';
+    var passengerPhone = (ride.passenger && ride.passenger.phone) || ride.passengerPhone || '—';
+    var fareLabel      = ride.finalPrice && ride.finalPrice !== ride.offeredPrice
       ? 'Rs ' + Math.round(ride.finalPrice) + ' <span style="font-size:0.8rem;color:#aaa;font-weight:400">(agreed fare)</span>'
-      : 'Rs ' + Math.round(ride.finalPrice || ride.estimatedFare || 0);
+      : 'Rs ' + Math.round(ride.finalPrice || ride.offeredPrice || 0);
 
     var html =
       '<div class="active-ride-card">' +
@@ -1495,8 +1500,17 @@
     setTimeout(function() { initNavMap(ride); }, 100);
 
     lastMessageAt = null;
+    seenMsgIds = {};
     startChatPolling(ride._id);
     startActiveRidePoll(ride._id);
+  }
+
+  // Helper: extract lat/lng from a ride location object (supports both .lat and .coordinates.lat)
+  function getCoords(loc) {
+    if (!loc) return null;
+    if (loc.lat !== undefined && loc.lng !== undefined) return { lat: loc.lat, lng: loc.lng };
+    if (loc.coordinates) return { lat: loc.coordinates.lat, lng: loc.coordinates.lng };
+    return null;
   }
 
   function initNavMap(ride) {
@@ -1504,15 +1518,24 @@
     navDestMarker = null;
     driverPhase = 'to_pickup';
 
-    var pickupLat = ride.pickup.lat;
-    var pickupLng = ride.pickup.lng;
+    var pCoords = getCoords(ride.pickup);
+    var dCoords = getCoords(ride.destination);
+    if (!pCoords) { showToast('⚠️ Pickup coordinates missing.', '#e74c3c'); return; }
+
+    var pickupLat = pCoords.lat;
+    var pickupLng = pCoords.lng;
+
+    // Attach flat coords to ride so drawPickupToDestRoute / addDriverMarkerAndRoute can use them
+    ride.pickup.lat      = pickupLat;
+    ride.pickup.lng      = pickupLng;
+    if (dCoords) { ride.destination.lat = dCoords.lat; ride.destination.lng = dCoords.lng; }
 
     // Center map between pickup and destination for a better overview
     var centerLat = pickupLat;
     var centerLng = pickupLng;
-    if (ride.destination && ride.destination.lat) {
-      centerLat = (pickupLat + ride.destination.lat) / 2;
-      centerLng = (pickupLng + ride.destination.lng) / 2;
+    if (dCoords) {
+      centerLat = (pickupLat + dCoords.lat) / 2;
+      centerLng = (pickupLng + dCoords.lng) / 2;
     }
 
     navMap = L.map('nav-map').setView([centerLat, centerLng], 12);
@@ -1532,18 +1555,18 @@
       .openPopup();
 
     // Destination marker (green) — show immediately on map init
-    if (ride.destination && ride.destination.lat) {
+    if (dCoords) {
       var destIcon = L.divIcon({
         className: '',
         html: '<div style="background:#27ae60;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
         iconSize: [16, 16], iconAnchor: [8, 8]
       });
-      navDestMarker = L.marker([ride.destination.lat, ride.destination.lng], { icon: destIcon })
+      navDestMarker = L.marker([dCoords.lat, dCoords.lng], { icon: destIcon })
         .addTo(navMap)
         .bindPopup('🟢 <strong>Destination</strong><br/>' + (ride.destination.address || ''));
 
       // Fit both markers in view
-      var bounds = L.latLngBounds([pickupLat, pickupLng], [ride.destination.lat, ride.destination.lng]);
+      var bounds = L.latLngBounds([pickupLat, pickupLng], [dCoords.lat, dCoords.lng]);
       navMap.fitBounds(bounds, { padding: [40, 40] });
     }
 
@@ -1865,6 +1888,7 @@
     stopChatPolling();
     stopActiveRidePoll(); // ← must stop poll so it doesn't fire after driver-side cancel
     lastMessageAt = null;
+    seenMsgIds    = {};
     if (navMap)         { navMap.remove(); navMap = null; }
     navRouteLayer   = null;
     navDriverMarker = null;
@@ -2105,19 +2129,23 @@
   }
 
   function pollChatMessages(rideId) {
-    var url = API + '/api/rides/' + rideId + '/messages';
-    if (lastMessageAt) url += '?since=' + encodeURIComponent(lastMessageAt);
-
-    fetch(url, { headers: authHeaders() })
+    fetch(API + '/api/rides/' + rideId + '/messages', { headers: authHeaders() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.success || !data.messages) return;
       data.messages.forEach(function(msg) {
+        // Support both sentAt (old) and createdAt (new) field names
+        var ts = msg.createdAt || msg.sentAt || null;
+        // Build a dedup key: prefer _id, fallback to senderType+text+timestamp
+        var key = msg._id || (msg.senderType + '|' + msg.text + '|' + ts);
+        if (seenMsgIds[key]) return; // already shown
+        seenMsgIds[key] = true;
+        // Only show messages from passenger (driver's own are shown optimistically)
         if (msg.senderType !== 'driver') {
-          appendChatBubble(msg, false);
+          appendChatBubble({ text: msg.text, senderType: msg.senderType, sentAt: ts }, false);
         }
-        if (!lastMessageAt || new Date(msg.sentAt) > new Date(lastMessageAt)) {
-          lastMessageAt = msg.sentAt;
+        if (ts && (!lastMessageAt || new Date(ts) > new Date(lastMessageAt))) {
+          lastMessageAt = ts;
         }
       });
     })
@@ -2130,7 +2158,11 @@
     if (!text || !activeRide) return;
     input.value = '';
 
-    var optimisticMsg = { text: text, senderType: 'driver', sentAt: new Date().toISOString() };
+    var nowIso = new Date().toISOString();
+    var optimisticMsg = { text: text, senderType: 'driver', sentAt: nowIso };
+    // Mark as seen immediately so poll doesn't re-add it
+    var optimisticKey = 'driver|' + text + '|' + nowIso;
+    seenMsgIds[optimisticKey] = true;
     appendChatBubble(optimisticMsg, true);
 
     fetch(API + '/api/rides/' + activeRide._id + '/messages', {
@@ -2139,13 +2171,6 @@
       body:    JSON.stringify({ text: text, senderType: 'driver' })
     })
     .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.message && data.message.sentAt) {
-        if (!lastMessageAt || new Date(data.message.sentAt) > new Date(lastMessageAt)) {
-          lastMessageAt = data.message.sentAt;
-        }
-      }
-    })
     .catch(function() {});
   }
 
@@ -2154,7 +2179,8 @@
     if (!box) return;
     var empty = box.querySelector('.chat-empty');
     if (empty) empty.remove();
-    var time = new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    var ts   = msg.createdAt || msg.sentAt || null;
+    var time = ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     var div  = document.createElement('div');
     div.className = 'chat-bubble ' + (isMine ? 'me' : 'them');
     div.innerHTML = msg.text + '<div class="bubble-time">' + time + '</div>';

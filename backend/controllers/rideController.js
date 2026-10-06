@@ -237,7 +237,9 @@ const completeRide = async (req, res) => {
     const ride = await Ride.findById(req.params.id);
     if (!ride) return res.status(404).json({ message: 'Ride not found.' });
     if (String(ride.driver) !== String(req.user._id)) return res.status(403).json({ message: 'Not your ride.' });
-    if (ride.status !== 'in_progress') return res.status(400).json({ message: 'Ride is not in progress.' });
+    if (!['accepted', 'driver_arrived', 'in_progress'].includes(ride.status)) {
+      return res.status(400).json({ message: 'Cannot complete a ' + ride.status + ' ride.' });
+    }
 
     ride.status      = 'completed';
     ride.completedAt = new Date();
