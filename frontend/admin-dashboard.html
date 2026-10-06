@@ -421,7 +421,7 @@ function doAdminLogin() {
   if (!user || !pass) { errEl.textContent = 'Enter username and password.'; return; }
   btn.disabled = true; btn.textContent = 'Signing in…';
 
-  fetch(API + '/api/admin/login', {
+  fetch(API + '/api/admin/stats', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: user, password: pass })
