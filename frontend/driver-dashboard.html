@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Driver Dashboard — RidePK</title>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -666,8 +666,9 @@
   </div><!-- /content -->
 </div><!-- /main -->
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet JS (primary: jsDelivr, fallback: unpkg) -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>if(typeof L==='undefined'){document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');}</script>
 
 <script>
   var API         = 'https://ridepk.onrender.com';
@@ -1268,22 +1269,6 @@
       ? 'Rs ' + Math.round(counterAmt) + ' <span style="color:var(--muted);font-size:0.85rem;font-weight:400;text-decoration:line-through">Rs ' + Math.round(baseFare) + '</span>'
       : 'Rs ' + Math.round(baseFare || 0);
 
-    var counterOfferHtml = '';
-    if (hasCounterOffer) {
-      counterOfferHtml =
-        '<div class="counter-offer-banner">' +
-          '<div class="co-title">💬 Counter-offer from passenger</div>' +
-          '<div class="co-fare-row">' +
-            '<div class="co-fare-item"><div class="cf-lbl">Original</div><div class="cf-val original">Rs ' + Math.round(baseFare) + '</div></div>' +
-            '<div style="display:flex;align-items:center;font-size:1.3rem">→</div>' +
-            '<div class="co-fare-item"><div class="cf-lbl">Offered</div><div class="cf-val offered">Rs ' + Math.round(counterAmt) + '</div></div>' +
-          '</div>' +
-          '<div class="co-actions">' +
-            '<button class="btn-co-accept" onclick="respondCounterOffer(\'' + ride._id + '\',\'accept\')">✅ Accept Rs ' + Math.round(counterAmt) + '</button>' +
-          '</div>' +
-        '</div>';
-    }
-
     return (
       '<div class="ride-request-card" id="rcard-' + ride._id + '">' +
         '<div class="ride-request-header">' +
@@ -1308,13 +1293,10 @@
             '<div class="ride-meta-item"><div class="rm-val">' + (ride.passengerName || 'Passenger') + '</div><div class="rm-lbl">Passenger</div></div>' +
             '<div class="ride-meta-item"><div class="rm-val">' + (ride.paymentMethod || 'Cash') + '</div><div class="rm-lbl">Payment</div></div>' +
           '</div>' +
-          counterOfferHtml +
-          (hasCounterOffer ? '' :
-            '<div class="ride-actions">' +
-              '<button class="btn-accept" onclick="acceptRide(\'' + ride._id + '\')">✅ Accept</button>' +
-              '<button class="btn-ignore" onclick="skipRide(\'' + ride._id + '\')">⏭️ Skip (1 min)</button>' +
-            '</div>'
-          ) +
+          '<div class="ride-actions">' +
+            '<button class="btn-accept" onclick="acceptRide(\'' + ride._id + '\')">✅ Accept</button>' +
+            '<button class="btn-ignore" onclick="skipRide(\'' + ride._id + '\')">⏭️ Skip (1 min)</button>' +
+          '</div>' +
         '</div>' +
       '</div>'
     );
@@ -1508,7 +1490,7 @@
   function getCoords(loc) {
     if (!loc) return null;
     if (loc.lat !== undefined && loc.lng !== undefined) return { lat: loc.lat, lng: loc.lng };
-    if (loc.coordinates) return { lat: loc.coordinates.lat, lng: loc.coordinates.lng };
+    if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) return { lat: loc.coordinates[1], lng: loc.coordinates[0] };
     return null;
   }
 
@@ -2179,7 +2161,8 @@
     var empty = box.querySelector('.chat-empty');
     if (empty) empty.remove();
     var ts   = msg.createdAt || msg.sentAt || null;
-    var time = ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    var _d   = ts ? new Date(ts) : null;
+    var time = (_d && !isNaN(_d.getTime())) ? _d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     var div  = document.createElement('div');
     div.className = 'chat-bubble ' + (isMine ? 'me' : 'them');
     div.innerHTML = msg.text + '<div class="bubble-time">' + time + '</div>';

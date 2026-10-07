@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Book a Ride — RidePK</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -437,15 +437,16 @@
 
 </div>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet JS (primary: jsDelivr, fallback: unpkg) -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>if(typeof L==='undefined'){document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');}</script>
 
 <script>
 
 // =========================================================
 //  CONFIGURATION
 // =========================================================
-var API = 'https://ridepk.onrender.com';
+var API = 'http://localhost:5000';
 
 var PRICING = {
   motorbike: { minFare: 60,  perKm: 35, label: 'Rs 35/km' },
@@ -2265,10 +2266,12 @@ function resetBookingUI(keepForm) {
   document.getElementById('btn-book').textContent = '🚗 Find a Driver';
 
   if (!keepForm) {
-    // Full reset — clear inputs too
+    // Full reset — clear inputs, map markers and route line
     document.getElementById('pickup-input').value = '';
     document.getElementById('dest-input').value   = '';
-    pickupMarker = null; destMarker = null;
+    if (pickupMarker) { map.removeLayer(pickupMarker); pickupMarker = null; }
+    if (destMarker)   { map.removeLayer(destMarker);   destMarker   = null; }
+    if (routeLine)    { map.removeLayer(routeLine);    routeLine    = null; }
   }
 
   // Re-show negotiate box if fare is set
@@ -2395,7 +2398,7 @@ var passengerCity = '';
 function loadPassengerProfile() {
   var token = localStorage.getItem('token');
   if (!token) return;
-  fetch((window.RIDEPK_API_BASE || 'https://ridepk.onrender.com') + '/api/users/profile', {
+  fetch((window.RIDEPK_API_BASE || 'http://localhost:5000') + '/api/users/profile', {
     headers: { 'Authorization': 'Bearer ' + token }
   })
   .then(function(r) { return r.ok ? r.json() : null; })
