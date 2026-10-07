@@ -58,6 +58,9 @@
       align-self: flex-start;
       border-bottom-left-radius: 4px;
     }
+    /* Prevent external CSS from injecting "Driver:" via ::before */
+    .pax-chat-bubble.them::before { content: '' !important; display: none !important; }
+    .pax-chat-bubble.me::before   { content: '' !important; display: none !important; }
     .bubble-time {
       font-size: 0.7rem;
       opacity: 0.65;
@@ -330,6 +333,7 @@
     // Chat state
     var paxChatInterval = null;
     var paxSeenMsgIds   = {};
+    var currentDriverName = null; // set when ride is accepted/active
 
     // Poll state
     var paxRidePollInterval = null;
@@ -553,7 +557,7 @@
               if (ride.cancelledBy === 'driver') {
                 var dName  = (ride.driver && ride.driver.fullName) || '—';
                 var dPhone = (ride.driver && ride.driver.phone)    || '—';
-                var reason = ride.cancelReason || 'No reason provided';
+                var reason = ride.cancelReason || ride.reason || ride.cancelledReason || 'No reason provided';
                 document.getElementById('driver-cancel-details').innerHTML =
                   '<div><strong>🚗 Driver:</strong> '+dName+'</div>'+
                   '<div><strong>📞 Phone:</strong> <a href="tel:'+dPhone+'">'+dPhone+'</a></div>'+
@@ -568,6 +572,9 @@
               currentActiveRideId = null;
               loadRides(); return;
             }
+
+            // Update driver name for chat bubbles
+            if (ride.driver && ride.driver.fullName) currentDriverName = ride.driver.fullName;
 
             // Update driver location dot
             if (ride.driver && ride.driver.location) {
@@ -659,15 +666,23 @@
       var ts   = msg.createdAt || msg.sentAt || null;
       var time = '';
       if (ts) { var d = new Date(ts); if (!isNaN(d.getTime())) time = d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+      var senderLabel = '';
+      if (!isMine) {
+        // Received message — show actual driver name
+        var dName = currentDriverName || 'Driver';
+        senderLabel = '<div style="font-size:0.72rem;font-weight:600;color:#888;margin-bottom:2px">'+dName+'</div>';
+      }
       var div = document.createElement('div');
       div.className = 'pax-chat-bubble '+(isMine?'me':'them');
-      div.innerHTML = msg.text+'<div class="bubble-time">'+time+'</div>';
+      div.innerHTML = senderLabel+msg.text+'<div class="bubble-time">'+time+'</div>';
       box.appendChild(div);
       box.scrollTop = box.scrollHeight;
     }
 
     // ===== RENDER ACTIVE RIDE =====
     function renderActiveRide(ride) {
+      // Store driver name for chat bubbles
+      if (ride.driver && ride.driver.fullName) currentDriverName = ride.driver.fullName;
       var hasDriver = ride.status==='accepted'||ride.status==='driver_arrived'||ride.status==='in_progress';
       var labels = {
         searching:      '🔍 Looking for a driver...',

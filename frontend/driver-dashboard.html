@@ -862,14 +862,14 @@
       return;
     }
 
-    // Pass 1 — fast, allow 60s cached fix (WiFi / cell tower)
+    // Pass 1 — force fresh fix (maximumAge:0 prevents stale Gilgit cache)
     navigator.geolocation.getCurrentPosition(
       function(pos) { _applyDriverGps(pos, cityName, false); },
       function() { /* silent — pass 2 will handle */ },
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
     );
 
-    // Pass 2 — high accuracy (GPS chip), runs in parallel
+    // Pass 2 — high accuracy GPS chip, runs in parallel
     navigator.geolocation.getCurrentPosition(
       function(pos) { _applyDriverGps(pos, cityName, true); },
       function(err) {
@@ -880,7 +880,7 @@
           enableMapTapLocation(cityName);
         }
       },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
     );
 
     // Pass 3 — continuous watchPosition: keeps sending as driver moves
@@ -888,7 +888,7 @@
     _loadWatchId = navigator.geolocation.watchPosition(
       function(pos) { _applyDriverGps(pos, cityName, true); },
       function() {},
-      { enableHighAccuracy: true, maximumAge: 10000 }
+      { enableHighAccuracy: true, maximumAge: 0 }
     );
   }
 
@@ -1139,6 +1139,7 @@
           label.textContent = 'Online';
           showToast('✅ You are now online. Ride requests will appear here.', '#27ae60');
           startSendingLocation();
+          startRidePolling(); // begin polling for ride requests immediately
         } else {
           toggle.classList.remove('online');
           label.textContent = 'Offline';
@@ -1201,9 +1202,7 @@
     return null;
   }
 
-  function startRidePolling() {
-    stopRidePolling();
-    pollInterval = setInterval(function() {
+  function _doPollRides() {
       if (!driverData || !driverData.isOnline) return;
       if (activeRide) return;
 
@@ -1218,22 +1217,16 @@
         var now = Date.now();
         var myType = myVehicleType();
 
-        // Filter: match vehicle type + skip cooldown (1 min after skipping)
         var rides = (data.rides || []).filter(function(r) {
-          // Vehicle filter — only show rides that match this driver's vehicle type
-          // if (myType && r.vehicleType && r.vehicleType !== myType) return false;
-          // Skip cooldown — don't show rides the driver skipped in the last 60 seconds
           if (skippedRides[r._id] && (now - skippedRides[r._id]) < 60000) return false;
           return true;
         });
 
-        // Clean up expired skip entries
         Object.keys(skippedRides).forEach(function(id) {
           if (now - skippedRides[id] >= 60000) delete skippedRides[id];
         });
 
         if (rides.length === 0) {
-          // No matching rides — clear the cards (may have all been accepted/skipped)
           currentRequest = null;
           var wrap = document.getElementById('ride-request-wrap');
           wrap.classList.add('hidden');
@@ -1241,11 +1234,15 @@
           return;
         }
 
-        // Show up to 3 matching rides simultaneously
         showRideCards(rides.slice(0, 3));
       })
       .catch(function(err) { console.warn('Ride poll error:', err); });
-    }, 5000);
+  }
+
+  function startRidePolling() {
+    stopRidePolling();
+    _doPollRides(); // immediate first check — no 5s wait
+    pollInterval = setInterval(_doPollRides, 5000);
 
     updatePollStatus();
   }
@@ -1486,11 +1483,24 @@
     startActiveRidePoll(ride._id);
   }
 
-  // Helper: extract lat/lng from a ride location object (supports both .lat and .coordinates.lat)
+  // Helper: extract lat/lng from a ride location object
+  // Supports: {lat,lng}, {coordinates:[lng,lat]}, {type:'Point',coordinates:[lng,lat]},
+  //           {location:{lat,lng}}, {location:{coordinates:[lng,lat]}}
   function getCoords(loc) {
     if (!loc) return null;
-    if (loc.lat !== undefined && loc.lng !== undefined) return { lat: loc.lat, lng: loc.lng };
-    if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) return { lat: loc.coordinates[1], lng: loc.coordinates[0] };
+    // Direct flat coords
+    if (loc.lat !== undefined && loc.lng !== undefined) return { lat: Number(loc.lat), lng: Number(loc.lng) };
+    if (loc.latitude !== undefined && loc.longitude !== undefined) return { lat: Number(loc.latitude), lng: Number(loc.longitude) };
+    // GeoJSON array  [lng, lat]
+    if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
+      // Sanity: coordinates[1] should be lat (23-36), coordinates[0] should be lng (60-80)
+      var lng0 = Number(loc.coordinates[0]), lat1 = Number(loc.coordinates[1]);
+      if (lat1 >= 23 && lat1 <= 36 && lng0 >= 60 && lng0 <= 80) return { lat: lat1, lng: lng0 };
+      // Might be stored as [lat, lng] — check
+      if (lng0 >= 23 && lng0 <= 36 && lat1 >= 60 && lat1 <= 80) return { lat: lng0, lng: lat1 };
+    }
+    // Nested .location object
+    if (loc.location) return getCoords(loc.location);
     return null;
   }
 
@@ -1573,10 +1583,8 @@
     drawPickupToDestRoute(ride);
 
     // Get real GPS — two-pass strategy (same as offline GPS)
-    // Pass 1: fast cached fix (no cold-start wait)
-    // Pass 2: high accuracy refine
-    // maximumAge: 0 is intentionally avoided — it forces a cold GPS lock that times out
-    // and the browser falls back to a stale OS-cached position (often Gilgit)
+    // Pass 1: fresh fix with maximumAge:0 to avoid stale Gilgit cached position
+    // Pass 2: high accuracy GPS chip refines in background
     if (navigator.geolocation) {
       var _mapGpsAccepted = false;
 
@@ -1593,11 +1601,11 @@
         addDriverMarkerAndRoute(ride);
       }
 
-      // Pass 1 — fast cached (gets result in < 1 second)
+      // Pass 1 — force fresh fix (no stale cached Gilgit position)
       navigator.geolocation.getCurrentPosition(
         function(pos) { _applyNavGps(pos, false); },
         function() { /* silent — pass 2 handles */ },
-        { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
       );
 
       // Pass 2 — high accuracy GPS chip (refines in background)
@@ -1608,7 +1616,7 @@
             showToast('📍 GPS unavailable — enable location permission.', '#e74c3c');
           }
         },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+        { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
       );
 
       // Pass 3 — continuous watch while ride is active
@@ -1616,7 +1624,7 @@
       _loadWatchId = navigator.geolocation.watchPosition(
         function(pos) { _applyNavGps(pos, true); },
         function() {},
-        { enableHighAccuracy: true, maximumAge: 5000 }
+        { enableHighAccuracy: true, maximumAge: 0 }
       );
     } else {
       showToast('📍 Geolocation not supported by your browser.', '#e74c3c');
@@ -2008,17 +2016,17 @@
 
   function doGpsUpdate() {
     if (!navigator.geolocation) return;
-    // Pass 1: fast cached fix — gets a quick position immediately
+    // Pass 1: force fresh fix (maximumAge:0) — no stale cached Gilgit position
     navigator.geolocation.getCurrentPosition(
       function(pos) { _applyOnlineGps(pos); },
       function() {},
-      { enableHighAccuracy: false, timeout: 4000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-    // Pass 2: high accuracy — refines in background
+    // Pass 2: high accuracy fallback with slight tolerance
     navigator.geolocation.getCurrentPosition(
       function(pos) { _applyOnlineGps(pos); },
       function() {},
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 3000 }
     );
   }
 
@@ -2084,15 +2092,16 @@
           stopActiveRidePoll();
           stopChatPolling();
           var cancelledBy  = (data.ride && data.ride.cancelledBy)  || 'passenger';
-          var cancelReason = (data.ride && data.ride.cancelReason) || 'No reason provided';
+          var cancelReason = (data.ride && (data.ride.cancelReason || data.ride.reason || data.ride.cancelledReason)) || 'No reason provided';
           var isPassenger  = cancelledBy === 'passenger';
 
-          if (isPassenger && activeRide) {
-            // Show prominent modal with full passenger details
-            var pName  = (activeRide.passenger && activeRide.passenger.name)  || activeRide.passengerName  || 'Passenger';
-            var pPhone = (activeRide.passenger && activeRide.passenger.phone) || activeRide.passengerPhone || '—';
-            var pDest  = (activeRide.destination && activeRide.destination.address) || '—';
-            var pVtype = activeRide.vehicleType || 'car';
+          if (isPassenger) {
+            // Use data.ride (fresh from poll) for passenger details + cancel reason
+            var freshRide = data.ride || activeRide || {};
+            var pName  = (freshRide.passenger && freshRide.passenger.name)  || freshRide.passengerName  || 'Passenger';
+            var pPhone = (freshRide.passenger && freshRide.passenger.phone) || freshRide.passengerPhone || '—';
+            var pDest  = (freshRide.destination && freshRide.destination.address) || (activeRide && activeRide.destination && activeRide.destination.address) || '—';
+            var pVtype = freshRide.vehicleType || (activeRide && activeRide.vehicleType) || 'car';
             var detailsEl = document.getElementById('pax-cancel-details');
             if (detailsEl) {
               detailsEl.innerHTML =
@@ -2184,9 +2193,15 @@
     var ts   = msg.createdAt || msg.sentAt || null;
     var _d   = ts ? new Date(ts) : null;
     var time = (_d && !isNaN(_d.getTime())) ? _d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    var senderLabel = '';
+    if (!isMine) {
+      // Received message — show passenger's name if we have it
+      var pName = activeRide && ((activeRide.passenger && activeRide.passenger.name) || activeRide.passengerName);
+      senderLabel = '<div style="font-size:0.72rem;font-weight:600;color:#888;margin-bottom:2px">' + (pName || 'Passenger') + '</div>';
+    }
     var div  = document.createElement('div');
     div.className = 'chat-bubble ' + (isMine ? 'me' : 'them');
-    div.innerHTML = msg.text + '<div class="bubble-time">' + time + '</div>';
+    div.innerHTML = senderLabel + msg.text + '<div class="bubble-time">' + time + '</div>';
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
   }
