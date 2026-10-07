@@ -256,12 +256,12 @@
       height: 220px; overflow-y: auto; padding: 14px; display: flex;
       flex-direction: column; gap: 8px;
     }
-    .chat-bubble {
+    .rpk-drv-bubble {
       max-width: 75%; padding: 9px 14px; border-radius: 16px; font-size: 0.88rem; line-height: 1.4;
     }
-    .chat-bubble.me   { background: var(--orange); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
-    .chat-bubble.them { background: #e8e8e8; color: var(--dark); align-self: flex-start; border-bottom-left-radius: 4px; }
-    .chat-bubble .bubble-time { font-size: 0.72rem; opacity: 0.65; margin-top: 3px; }
+    .rpk-drv-bubble.me   { background: var(--orange); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .rpk-drv-bubble.them { background: #e8e8e8; color: var(--dark); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .rpk-drv-bubble .bubble-time { font-size: 0.72rem; opacity: 0.65; margin-top: 3px; }
     .chat-input-row {
       display: flex; gap: 8px; padding: 10px 12px;
       border-top: 1px solid var(--border); background: #fff;
@@ -1395,11 +1395,23 @@
     var btn = document.querySelector('.btn-accept');
     if (btn) { btn.disabled = true; btn.textContent = 'Accepting...'; }
 
+    // Save the full pending-ride object BEFORE accepting — it has passenger populated
+    // The /accept response may return an unpopulated passenger field
+    var preAcceptRide = currentRequest || null;
+
     fetch(API + '/api/rides/' + rideId + '/accept', { method: 'PUT', headers: authHeaders() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success) {
-        activeRide     = data.ride;
+        activeRide = data.ride;
+        // Patch in passenger details from the pre-accept ride if /accept didn't populate them
+        if (preAcceptRide && preAcceptRide.passenger && activeRide) {
+          if (!activeRide.passenger || typeof activeRide.passenger === 'string' || !activeRide.passenger.name) {
+            activeRide.passenger = preAcceptRide.passenger;
+          }
+          if (!activeRide.passengerName) activeRide.passengerName = preAcceptRide.passengerName || (preAcceptRide.passenger && preAcceptRide.passenger.name);
+          if (!activeRide.passengerPhone) activeRide.passengerPhone = preAcceptRide.passengerPhone || (preAcceptRide.passenger && preAcceptRide.passenger.phone);
+        }
         currentRequest = null;
         document.getElementById('ride-request-wrap').classList.add('hidden');
         document.getElementById('ride-request-wrap').innerHTML = '';
@@ -2204,9 +2216,11 @@
     if (!box) return;
     var empty = box.querySelector('.chat-empty');
     if (empty) empty.remove();
-    var ts   = msg.createdAt || msg.sentAt || null;
+    var ts   = msg.createdAt || msg.created_at || msg.sentAt || msg.timestamp || null;
     var _d   = ts ? new Date(ts) : null;
-    var time = (_d && !isNaN(_d.getTime())) ? _d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    var time = (_d && !isNaN(_d.getTime()))
+      ? _d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); // fallback to now
     var senderLabel = '';
     if (!isMine) {
       // Received message — show passenger's name if we have it
@@ -2214,7 +2228,7 @@
       senderLabel = '<div style="font-size:0.72rem;font-weight:600;color:#888;margin-bottom:2px">' + (pName || 'Passenger') + '</div>';
     }
     var div  = document.createElement('div');
-    div.className = 'chat-bubble ' + (isMine ? 'me' : 'them');
+    div.className = 'rpk-drv-bubble ' + (isMine ? 'me' : 'them');
     div.innerHTML = senderLabel + msg.text + '<div class="bubble-time">' + time + '</div>';
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;

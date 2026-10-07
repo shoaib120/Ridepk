@@ -38,7 +38,8 @@
       margin-bottom: 10px;
       padding: 4px;
     }
-    .pax-chat-bubble {
+    /* rpk-msg-bubble — unique class name so external CSS can NEVER target it */
+    .rpk-msg-bubble {
       max-width: 75%;
       padding: 8px 12px;
       border-radius: 18px;
@@ -46,23 +47,19 @@
       line-height: 1.4;
       word-break: break-word;
     }
-    .pax-chat-bubble.me {
+    .rpk-msg-bubble.me {
       background: #ff6b00;
       color: #fff;
       align-self: flex-end;
       border-bottom-right-radius: 4px;
     }
-    .pax-chat-bubble.them {
+    .rpk-msg-bubble.them {
       background: #e8e8e8;
       color: #222;
       align-self: flex-start;
       border-bottom-left-radius: 4px;
     }
-    /* Prevent external CSS from injecting "Driver:" via ::before — high specificity to win */
-    .dash-page .pax-chat-bubble.them::before,
-    .pax-chat-bubble.them::before { content: '' !important; display: none !important; }
-    .dash-page .pax-chat-bubble.me::before,
-    .pax-chat-bubble.me::before   { content: '' !important; display: none !important; }
+    /* No ::before rules needed — external CSS doesn't know this class exists */
     .bubble-time {
       font-size: 0.7rem;
       opacity: 0.65;
@@ -338,6 +335,8 @@
     var currentDriverName = null;      // set when ride is accepted/active
     var storedCancelledBy = null;      // stored when backend returns cancelledBy mid-ride
     var storedCancelReason = null;     // stored cancel reason
+    var currentUserName  = null;       // logged-in passenger name (from loadUser)
+    var currentUserPhone = null;       // logged-in passenger phone
 
     // Poll state
     var paxRidePollInterval = null;
@@ -362,6 +361,8 @@
       var data = await API.get('/api/auth/me');
       if (data.user) {
         var name = data.user.name || 'User';
+        currentUserName  = name;
+        currentUserPhone = data.user.phone || null;
         document.getElementById('user-name').textContent     = name;
         document.getElementById('sidebar-name').textContent  = name;
         document.getElementById('greeting-name').textContent = name.split(' ')[0];
@@ -676,17 +677,27 @@
     function appendPaxBubble(msg, isMine) {
       var box = document.getElementById('pax-chat-messages');
       if (!box) return;
-      var ts   = msg.createdAt || msg.sentAt || null;
+      // Try every possible timestamp field the backend might use
+      var ts = msg.createdAt || msg.created_at || msg.sentAt || msg.timestamp || null;
       var time = '';
-      if (ts) { var d = new Date(ts); if (!isNaN(d.getTime())) time = d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+      if (ts) {
+        var d = new Date(ts);
+        if (!isNaN(d.getTime())) {
+          time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+      }
+      if (!time) {
+        // Fallback: show current time for optimistically-added messages
+        time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
       var senderLabel = '';
       if (!isMine) {
-        // Received message — show actual driver name
         var dName = currentDriverName || 'Driver';
         senderLabel = '<div style="font-size:0.72rem;font-weight:600;color:#888;margin-bottom:2px">'+dName+'</div>';
       }
       var div = document.createElement('div');
-      div.className = 'pax-chat-bubble '+(isMine?'me':'them');
+      // Use rpk-msg-bubble — unique name, external CSS cannot inject ::before content into it
+      div.className = 'rpk-msg-bubble '+(isMine?'me':'them');
       div.innerHTML = senderLabel+msg.text+'<div class="bubble-time">'+time+'</div>';
       box.appendChild(div);
       box.scrollTop = box.scrollHeight;
