@@ -58,8 +58,10 @@
       align-self: flex-start;
       border-bottom-left-radius: 4px;
     }
-    /* Prevent external CSS from injecting "Driver:" via ::before */
+    /* Prevent external CSS from injecting "Driver:" via ::before — high specificity to win */
+    .dash-page .pax-chat-bubble.them::before,
     .pax-chat-bubble.them::before { content: '' !important; display: none !important; }
+    .dash-page .pax-chat-bubble.me::before,
     .pax-chat-bubble.me::before   { content: '' !important; display: none !important; }
     .bubble-time {
       font-size: 0.7rem;
@@ -333,7 +335,9 @@
     // Chat state
     var paxChatInterval = null;
     var paxSeenMsgIds   = {};
-    var currentDriverName = null; // set when ride is accepted/active
+    var currentDriverName = null;      // set when ride is accepted/active
+    var storedCancelledBy = null;      // stored when backend returns cancelledBy mid-ride
+    var storedCancelReason = null;     // stored cancel reason
 
     // Poll state
     var paxRidePollInterval = null;
@@ -551,19 +555,28 @@
             if (!data.success || !data.ride) return;
             var ride = data.ride;
 
+            // Store cancelledBy whenever backend returns it (may arrive before status=cancelled)
+            if (ride.cancelledBy) { storedCancelledBy = ride.cancelledBy; }
+            if (ride.cancelReason || ride.reason || ride.cancelledReason) {
+              storedCancelReason = ride.cancelReason || ride.reason || ride.cancelledReason;
+            }
+
             if (ride.status === 'cancelled') {
               stopPaxRidePoll(); stopPaxChat(); destroyPaxMap();
               currentActiveRideId = null;
-              if (ride.cancelledBy === 'driver') {
-                var dName  = (ride.driver && ride.driver.fullName) || '—';
+              // Use stored value as fallback in case this poll's ride obj lacks cancelledBy
+              var cancelledBy = ride.cancelledBy || storedCancelledBy || 'passenger';
+              var reason = ride.cancelReason || ride.reason || ride.cancelledReason || storedCancelReason || 'No reason provided';
+              if (cancelledBy === 'driver') {
+                var dName  = (ride.driver && ride.driver.fullName) || currentDriverName || '—';
                 var dPhone = (ride.driver && ride.driver.phone)    || '—';
-                var reason = ride.cancelReason || ride.reason || ride.cancelledReason || 'No reason provided';
                 document.getElementById('driver-cancel-details').innerHTML =
                   '<div><strong>🚗 Driver:</strong> '+dName+'</div>'+
                   '<div><strong>📞 Phone:</strong> <a href="tel:'+dPhone+'">'+dPhone+'</a></div>'+
                   '<div><strong>❌ Reason:</strong> '+reason+'</div>';
                 document.getElementById('driver-cancel-modal').classList.add('show');
               }
+              storedCancelledBy = null; storedCancelReason = null;
               loadRides(); return;
             }
 

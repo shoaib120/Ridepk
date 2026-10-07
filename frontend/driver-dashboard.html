@@ -801,6 +801,10 @@
         '<div><div style="font-size:0.75rem;color:#999;text-transform:uppercase">Plate</div><div style="font-weight:600;margin-top:3px">' + (data.driver.vehicle ? data.driver.vehicle.plate || data.driver.vehicle.plateNumber || '—' : '—') + '</div></div>' +
         '</div>';
 
+      // If driver is already online, start sending GPS immediately
+      if (data.driver.isOnline) {
+        startSendingLocation();
+      }
       startRidePolling();
 
       // Also silently refresh subscription status to populate top bar accurately
@@ -862,11 +866,12 @@
       return;
     }
 
-    // Pass 1 — force fresh fix (maximumAge:0 prevents stale Gilgit cache)
+    // Pass 1 — allow cached fix (maximumAge:5000) so it succeeds fast on Pakistani mobile
+    // Geographic bounding box in _applyDriverGps already rejects stale Gilgit coords
     navigator.geolocation.getCurrentPosition(
       function(pos) { _applyDriverGps(pos, cityName, false); },
       function() { /* silent — pass 2 will handle */ },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 5000 }
     );
 
     // Pass 2 — high accuracy GPS chip, runs in parallel
@@ -1512,8 +1517,8 @@
     var pCoords = getCoords(ride.pickup);
     var dCoords = getCoords(ride.destination);
 
-    // If pickup coords are missing, try to get from the active ride status endpoint
-    if (!pCoords && activeRide && activeRide._id) {
+    // If pickup OR destination coords are missing, re-fetch from the status endpoint
+    if ((!pCoords || !dCoords) && activeRide && activeRide._id) {
       fetch(API + '/api/rides/' + activeRide._id + '/status', { headers: authHeaders() })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -1582,8 +1587,8 @@
     pickupToDestLayer = null; // reset for new ride
     drawPickupToDestRoute(ride);
 
-    // Get real GPS — two-pass strategy (same as offline GPS)
-    // Pass 1: fresh fix with maximumAge:0 to avoid stale Gilgit cached position
+    // Get real GPS — two-pass strategy
+    // Pass 1: allow cached fix (maximumAge:5000) — fast on Pakistani mobile, bounding box rejects Gilgit
     // Pass 2: high accuracy GPS chip refines in background
     if (navigator.geolocation) {
       var _mapGpsAccepted = false;
@@ -1601,11 +1606,11 @@
         addDriverMarkerAndRoute(ride);
       }
 
-      // Pass 1 — force fresh fix (no stale cached Gilgit position)
+      // Pass 1 — allow cached fix (maximumAge:5000) for fast success on Pakistani mobile
       navigator.geolocation.getCurrentPosition(
         function(pos) { _applyNavGps(pos, false); },
         function() { /* silent — pass 2 handles */ },
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 5000 }
       );
 
       // Pass 2 — high accuracy GPS chip (refines in background)
@@ -2016,11 +2021,11 @@
 
   function doGpsUpdate() {
     if (!navigator.geolocation) return;
-    // Pass 1: force fresh fix (maximumAge:0) — no stale cached Gilgit position
+    // Pass 1: allow cached fix (maximumAge:5000) — fast on Pakistani mobile; bounding box rejects Gilgit
     navigator.geolocation.getCurrentPosition(
       function(pos) { _applyOnlineGps(pos); },
       function() {},
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 5000 }
     );
     // Pass 2: high accuracy fallback with slight tolerance
     navigator.geolocation.getCurrentPosition(
@@ -2096,10 +2101,19 @@
           var isPassenger  = cancelledBy === 'passenger';
 
           if (isPassenger) {
-            // Use data.ride (fresh from poll) for passenger details + cancel reason
-            var freshRide = data.ride || activeRide || {};
-            var pName  = (freshRide.passenger && freshRide.passenger.name)  || freshRide.passengerName  || 'Passenger';
-            var pPhone = (freshRide.passenger && freshRide.passenger.phone) || freshRide.passengerPhone || '—';
+            // data.ride.passenger is often an ObjectId (not populated), so fall back to
+            // activeRide which was populated at accept time
+            var freshRide = data.ride || {};
+            var pName  = (freshRide.passenger && freshRide.passenger.name)
+                      || (activeRide && activeRide.passenger && activeRide.passenger.name)
+                      || freshRide.passengerName
+                      || (activeRide && activeRide.passengerName)
+                      || 'Passenger';
+            var pPhone = (freshRide.passenger && freshRide.passenger.phone)
+                      || (activeRide && activeRide.passenger && activeRide.passenger.phone)
+                      || freshRide.passengerPhone
+                      || (activeRide && activeRide.passengerPhone)
+                      || '—';
             var pDest  = (freshRide.destination && freshRide.destination.address) || (activeRide && activeRide.destination && activeRide.destination.address) || '—';
             var pVtype = freshRide.vehicleType || (activeRide && activeRide.vehicleType) || 'car';
             var detailsEl = document.getElementById('pax-cancel-details');
