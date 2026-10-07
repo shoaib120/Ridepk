@@ -1501,6 +1501,22 @@
 
     var pCoords = getCoords(ride.pickup);
     var dCoords = getCoords(ride.destination);
+
+    // If pickup coords are missing, try to get from the active ride status endpoint
+    if (!pCoords && activeRide && activeRide._id) {
+      fetch(API + '/api/rides/' + activeRide._id + '/status', { headers: authHeaders() })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success && data.ride) {
+            activeRide = data.ride;
+            initNavMap(data.ride); // retry with fresh data
+          } else {
+            showToast('⚠️ Could not load ride coordinates.', '#e74c3c');
+          }
+        })
+        .catch(function() { showToast('⚠️ Pickup coordinates missing.', '#e74c3c'); });
+      return;
+    }
     if (!pCoords) { showToast('⚠️ Pickup coordinates missing.', '#e74c3c'); return; }
 
     var pickupLat = pCoords.lat;
@@ -2019,8 +2035,11 @@
     driverLocation = { lat: lat, lng: lng };
     _setGpsStatusBar('✅ Live ±' + Math.round(acc) + 'm', lat.toFixed(5) + ', ' + lng.toFixed(5), undefined);
     sendLocationToServer(lat, lng);
-    if (navMap && navDriverMarker) { navDriverMarker.setLatLng([lat, lng]); }
-    if (activeRide && navMap) { addDriverMarkerAndRoute(activeRide); }
+    if (activeRide && navMap) {
+      addDriverMarkerAndRoute(activeRide);
+    } else if (navMap && navDriverMarker) {
+      navDriverMarker.setLatLng([lat, lng]);
+    }
   }
 
   function startSendingLocation() {
@@ -2117,12 +2136,14 @@
       data.messages.forEach(function(msg) {
         // Support both sentAt (old) and createdAt (new) field names
         var ts = msg.createdAt || msg.sentAt || null;
-        // Build a dedup key: prefer _id, fallback to senderType+text+timestamp
-        var key = msg._id || (msg.senderType + '|' + msg.text + '|' + ts);
+        // Always use id: prefix when _id exists to avoid collision with optimistic keys
+        var key = msg._id
+          ? 'id:' + msg._id
+          : (msg.senderType + '|' + msg.text + '|' + ts);
         if (seenMsgIds[key]) return; // already shown
         seenMsgIds[key] = true;
         // Only show messages from passenger (driver's own are shown optimistically)
-        if (msg.senderType !== 'driver') {
+        if (msg.senderType === 'passenger') {
           appendChatBubble({ text: msg.text, senderType: msg.senderType, sentAt: ts }, false);
         }
         if (ts && (!lastMessageAt || new Date(ts) > new Date(lastMessageAt))) {

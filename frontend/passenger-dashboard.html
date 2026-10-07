@@ -550,7 +550,7 @@
             if (ride.status === 'cancelled') {
               stopPaxRidePoll(); stopPaxChat(); destroyPaxMap();
               currentActiveRideId = null;
-              if ((ride.cancelledBy||'driver') === 'driver') {
+              if (ride.cancelledBy === 'driver') {
                 var dName  = (ride.driver && ride.driver.fullName) || '—';
                 var dPhone = (ride.driver && ride.driver.phone)    || '—';
                 var reason = ride.cancelReason || 'No reason provided';
@@ -621,11 +621,15 @@
           if (!data.success || !data.messages) return;
           data.messages.forEach(function(msg){
             var ts  = msg.createdAt || msg.sentAt || null;
-            var key = msg._id || (msg.senderType+'|'+msg.text+'|'+ts);
+            // Always prefer _id for dedup; fallback key must be stable
+            var key = msg._id
+              ? 'id:'+msg._id
+              : (msg.senderType+'|'+msg.text+'|'+ts);
             if (paxSeenMsgIds[key]) return;
             paxSeenMsgIds[key] = true;
-            if (msg.senderType !== 'passenger') {
-              appendPaxBubble({ text:msg.text, senderType:msg.senderType, sentAt:ts }, false);
+            // Show driver messages; skip passenger's own (already shown optimistically)
+            if (msg.senderType === 'driver') {
+              appendPaxBubble({ text:msg.text, senderType:'driver', sentAt:ts }, false);
             }
           });
         })
@@ -638,8 +642,11 @@
       if (!text || !currentActiveRideId) return;
       input.value = '';
       var nowIso = new Date().toISOString();
+      // Mark with a stable key; server will return this with an _id but we'll skip via senderType check
       paxSeenMsgIds['passenger|'+text+'|'+nowIso] = true;
       appendPaxBubble({ text:text, senderType:'passenger', sentAt:nowIso }, true);
+      // Also mark any possible fallback key permutation so poll never re-adds
+      paxSeenMsgIds['passenger|'+text+'|null'] = true;
       fetch(API_BASE+'/api/rides/'+currentActiveRideId+'/messages', {
         method:'POST', headers:authHeaders(),
         body: JSON.stringify({ text:text, senderType:'passenger' })
@@ -718,9 +725,17 @@
     // ===== CANCEL RIDE =====
     async function cancelRide(rideId) {
       if (!confirm('Are you sure you want to cancel this ride?')) return;
+      var reason = prompt('Please enter a reason for cancellation (required):');
+      if (!reason || !reason.trim()) {
+        alert('A cancellation reason is required.');
+        return;
+      }
       stopPaxRidePoll(); stopPaxChat(); destroyPaxMap();
       currentActiveRideId = null;
-      var data = await API.put('/api/rides/'+rideId+'/cancel', {});
+      var data = await API.put('/api/rides/'+rideId+'/cancel', {
+        reason: reason.trim(),
+        cancelledBy: 'passenger'
+      });
       if (data.success) { alert('Ride cancelled.'); }
       else { alert(data.message || 'Could not cancel.'); }
       loadRides();
