@@ -907,10 +907,17 @@
       centerMapOnCity(cityName); return;
     }
 
+    // Reject wildly inaccurate network-based locations (±50000m = cell tower, not GPS)
+    // Only reject on Pass 1 (not highAccuracy) — Pass 2 high-accuracy chip may fix it
+    if (!highAccuracy && acc > 5000) {
+      _setGpsStatusBar('⏳ Waiting for GPS fix... ±' + Math.round(acc) + 'm', lat.toFixed(5)+','+lng.toFixed(5), undefined);
+      return; // wait for Pass 2 high-accuracy fix
+    }
+
     // Service area bounding box — AJK/Punjab/KP only (lat 23–35.5)
     // Gilgit is ~35.9°N — reject anything above 35.5 (Gilgit-Baltistan)
     if (lat < 23 || lat > 35.5 || lng < 60 || lng > 77) {
-      _setGpsStatusBar('❌ Outside area (Gilgit?)', lat.toFixed(5)+','+lng.toFixed(5), undefined);
+      _setGpsStatusBar('❌ Outside area — check GPS permission', lat.toFixed(5)+','+lng.toFixed(5), undefined);
       centerMapOnCity(cityName);
       return;
     }
@@ -1562,10 +1569,12 @@
       centerLng = (pickupLng + dCoords.lng) / 2;
     }
 
-    navMap = L.map('nav-map').setView([centerLat, centerLng], 12);
+    navMap = L.map('nav-map', { zoomControl: true }).setView([centerLat, centerLng], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors', maxZoom: 19
     }).addTo(navMap);
+    // Force Leaflet to recalculate container size — fixes blank map when div was hidden
+    setTimeout(function() { if (navMap) navMap.invalidateSize(); }, 300);
 
     // Pickup marker (red)
     var pickupIcon = L.divIcon({
@@ -1608,6 +1617,8 @@
       function _applyNavGps(pos, highAcc) {
         var lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;
         if (Math.abs(lat) < 0.5 && Math.abs(lng) < 0.5) return;
+        // Reject wildly inaccurate network fix (±50000m) — wait for real GPS chip
+        if (!highAcc && acc > 5000) return;
         // Reject Gilgit-Baltistan (lat > 35.5) — same rule as all other GPS checks
         if (lat < 23 || lat > 35.5 || lng < 60 || lng > 77) return;
         if (_mapGpsAccepted && !highAcc && acc > 500) return;
@@ -2052,6 +2063,8 @@
     var lng = pos.coords.longitude;
     var acc = pos.coords.accuracy;
     if (Math.abs(lat) < 0.5 && Math.abs(lng) < 0.5) return;
+    // Reject wildly inaccurate network fix (cell tower ±50000m) — not real GPS
+    if (acc > 5000) return;
     // Service area bounding box — reject Gilgit-Baltistan (lat > 35.5)
     if (lat < 23 || lat > 35.5 || lng < 60 || lng > 77) {
       _setGpsStatusBar('❌ Outside area', lat.toFixed(5)+','+lng.toFixed(5), undefined);
