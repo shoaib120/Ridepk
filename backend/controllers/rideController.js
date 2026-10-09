@@ -374,6 +374,30 @@ const cancelStaleRides = async () => {
   }
 };
 
+// ─────────────────────────────────────────────────────
+//  GET /api/rides/passenger/active
+//  Passenger finds their own active ride (fixes stuck "already have active ride")
+// ─────────────────────────────────────────────────────
+const getPassengerActiveRide = async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: 'Please login first.' });
+    }
+    const ride = await Ride.findOne({
+      passenger: req.user._id,
+      status: { $in: ['searching', 'accepted', 'driver_arrived', 'in_progress'] }
+    }).populate('driver', 'fullName phone vehicle rating');
+
+    if (!ride) {
+      return res.json({ success: true, ride: null, message: 'No active ride found.' });
+    }
+    res.json({ success: true, ride });
+  } catch (err) {
+    console.error('getPassengerActiveRide error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
 module.exports = {
   requestRide,
   getPendingRides,
@@ -385,5 +409,6 @@ module.exports = {
   counterOfferResponse,
   getMessages,
   postMessage,
-  cancelStaleRides
+  cancelStaleRides,
+  getPassengerActiveRide
 };

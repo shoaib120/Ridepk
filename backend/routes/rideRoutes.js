@@ -13,7 +13,8 @@ const {
   counterOffer,
   counterOfferResponse,
   getMessages,
-  postMessage
+  postMessage,
+  getPassengerActiveRide
 } = require('../controllers/rideController');
 
 // ────────────────────────────────────────────────────────────
@@ -27,7 +28,6 @@ function optionalPassengerAuth(req, res, next) {
   if (!token) return next();
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // Normalise: controllers use req.user._id
     req.user = { _id: decoded.id || decoded._id, ...decoded };
   } catch (e) { /* invalid token — ignore */ }
   next();
@@ -40,7 +40,6 @@ function requireDriverAuth(req, res, next) {
   if (!token) return res.status(401).json({ message: 'Driver token required.' });
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // Normalise: controllers use req.user._id
     req.user = { _id: decoded.id || decoded._id, ...decoded };
     next();
   } catch (e) {
@@ -58,25 +57,28 @@ router.post('/request',   optionalPassengerAuth, requestRide);
 // Driver polls for pending rides
 router.get ('/pending',   requireDriverAuth,      getPendingRides);
 
-// Driver accepts a ride (standard)
+// Passenger checks their own active ride (fix stuck "already have active ride")
+router.get ('/passenger/active', optionalPassengerAuth, getPassengerActiveRide);
+
+// Driver accepts a ride
 router.put ('/:id/accept',  requireDriverAuth,    acceptRide);
 
 // Passenger sends a counter-offer (lower fare up to 10%)
 router.put ('/:id/counter-offer',          optionalPassengerAuth, counterOffer);
 
-// Driver responds to counter-offer (accept or reject)
+// Driver responds to counter-offer
 router.put ('/:id/counter-offer-response', requireDriverAuth,     counterOfferResponse);
 
 // Passenger polls ride status
 router.get ('/:id/status',   getRideStatus);
 
-// Cancel (passenger or driver can cancel — reason required)
-router.put ('/:id/cancel',   cancelRide);
+// Cancel — now with optional auth so cancelledBy gets set correctly
+router.put ('/:id/cancel',   optionalPassengerAuth, cancelRide);
 
 // Driver completes ride
 router.put ('/:id/complete', requireDriverAuth, completeRide);
 
-// In-ride chat messages (both passenger and driver can GET and POST)
+// In-ride chat messages
 router.get ('/:id/messages', getMessages);
 router.post('/:id/messages', postMessage);
 
