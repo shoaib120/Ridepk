@@ -816,9 +816,33 @@
       window.location.href = 'login.html';
     }
 
+    // ===== CHECK ACTIVE RIDE ON PAGE LOAD =====
+    // This runs first — if passenger has an active ride, resume it immediately.
+    // Prevents "You already have an active ride" error after refresh.
+    function checkAndResumeActiveRide() {
+      fetch(API_BASE + '/api/rides/passenger/active', { headers: authHeaders() })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success && data.ride) {
+            var ride = data.ride;
+            var activeStatuses = ['searching', 'accepted', 'driver_arrived', 'in_progress'];
+            if (activeStatuses.indexOf(ride.status) !== -1) {
+              // Resume tracking this ride
+              currentActiveRideId = ride._id;
+              renderActiveRide(ride);
+              startPaxRidePoll(ride._id);
+              // Switch to Active Ride section automatically
+              showSection('active', document.querySelector('.snav-item[onclick*="active"]'));
+            }
+          }
+        })
+        .catch(function() {});
+    }
+
     // ===== INIT =====
     loadUser();
     loadRides();
+    checkAndResumeActiveRide();
   </script>
 </body>
 </html>

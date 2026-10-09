@@ -412,15 +412,60 @@ async function confirmRide() {
   document.getElementById('cnt').textContent = '...';
 
   const offeredPrice = parseInt(document.getElementById('price').value);
+
+  // FIXED: Use flat fields matching /api/rides/request (not nested objects)
   const rideData = {
-    pickup:      { address: document.getElementById('pickup').value, coordinates:{ lat:pickupLatLng.lat, lng:pickupLatLng.lng } },
-    destination: { address: document.getElementById('destination').value, coordinates:{ lat:destLatLng.lat, lng:destLatLng.lng } },
-    rideType, distanceKm:calculatedDistance, durationMin:calculatedDuration,
-    offeredPrice, paymentMethod
+    pickupAddress:    document.getElementById('pickup').value,
+    pickupLat:        pickupLatLng.lat,
+    pickupLng:        pickupLatLng.lng,
+    destinationAddress: document.getElementById('destination').value,
+    destinationLat:   destLatLng.lat,
+    destinationLng:   destLatLng.lng,
+    rideType,
+    distanceKm:       calculatedDistance,
+    durationMin:      calculatedDuration,
+    offeredPrice,
+    paymentMethod
   };
 
-  const data = await API.post('/api/rides/create', rideData);
+  // FIXED: Use /api/rides/request (live backend endpoint)
+  const data = await API.post('/api/rides/request', rideData);
+
   if (!data.success) {
+    // Handle "already have active ride" — resume instead of blocking
+    if (data.message && data.message.toLowerCase().includes('already have an active ride')) {
+      document.getElementById('searching').classList.add('hidden');
+      document.getElementById('step3').classList.remove('hidden');
+      showToast('⚠️ You have an active ride. Checking status...');
+      try {
+        const activeData = await API.get('/api/rides/passenger/active');
+        if (activeData.success && activeData.ride) {
+          const ride = activeData.ride;
+          activeRideId = ride._id;
+          // Build a simple status card
+          const list = document.getElementById('driver-list');
+          document.getElementById('step3').classList.add('hidden');
+          document.getElementById('searching').classList.remove('hidden');
+          list.innerHTML = `
+            <div style="background:rgba(255,107,0,.1);border:1px solid var(--orange);border-radius:10px;padding:16px;font-size:.88rem;line-height:1.8">
+              🔄 <b>You already have an active ride</b><br>
+              Status: <b>${ride.status.replace(/_/g,' ')}</b><br>
+              From: ${ride.pickupAddress||ride.pickup?.address||'—'}<br>
+              To: ${ride.destinationAddress||ride.destination?.address||'—'}<br>
+              Price: Rs. ${ride.offeredPrice}<br><br>
+              <button onclick="cancelExistingAndRetry()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-size:.85rem;margin-right:8px">
+                ❌ Cancel that ride & book new
+              </button>
+              <button onclick="window.location.href='passenger-dashboard.html'" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-size:.85rem">
+                👁 View active ride
+              </button>
+            </div>`;
+          return;
+        }
+      } catch(e) {}
+      alert('You already have an active ride. Please go to your dashboard to cancel it first.');
+      return;
+    }
     alert(data.message||'Could not create ride.');
     document.getElementById('searching').classList.add('hidden');
     document.getElementById('step3').classList.remove('hidden');
@@ -457,6 +502,18 @@ async function confirmRide() {
       </div>`;
     }
   }, 4 * 60 * 1000);
+}
+
+// Cancel existing stuck ride then go back to step 1
+async function cancelExistingAndRetry() {
+  if (!activeRideId) return;
+  try {
+    await API.put('/api/rides/'+activeRideId+'/cancel', { reason: 'Passenger cancelled to book new ride' });
+    showToast('✅ Previous ride cancelled. You can now book a new ride.');
+  } catch(e) {}
+  activeRideId = null;
+  document.getElementById('searching').classList.add('hidden');
+  goStep(1);
 }
 
 function showDriverCards(offeredPrice) {
