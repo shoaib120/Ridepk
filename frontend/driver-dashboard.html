@@ -2157,6 +2157,7 @@
           }
 
           // Clear the active ride immediately
+          stopActiveRidePoll();
           activeRide = null;
           var wrap = document.getElementById('active-ride-wrap');
           if (wrap) { wrap.classList.add('hidden'); wrap.innerHTML = ''; }
