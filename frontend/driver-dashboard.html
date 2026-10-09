@@ -1216,20 +1216,7 @@
 
   function _doPollRides() {
       if (!driverData || !driverData.isOnline) return;
-      // If activeRide is stale (cancelled/completed on backend), clear it first
-      if (activeRide) {
-        var staleId = activeRide._id;
-        fetch(API + '/api/rides/' + staleId + '/status', { headers: authHeaders() })
-          .then(function(r) { return r.json(); })
-          .then(function(d) {
-            if (d.success && d.ride && (d.ride.status === 'cancelled' || d.ride.status === 'completed')) {
-              stopActiveRidePoll();
-              resetActiveRide();
-              startRidePolling();
-            }
-          }).catch(function(){});
-        return;
-      }
+      if (activeRide) return;
 
       fetch(API + '/api/rides/pending', { headers: authHeaders() })
       .then(function(r) {
@@ -2359,6 +2346,23 @@
   // ── Init ──
   loadProfile();
   loadEarnings();
+
+  // ── On page load: check if there's a stale cancelled/completed ride stored
+  //    in activeRide (can happen if page reloaded mid-ride then cancelled)
+  //    We don't persist activeRide across reloads so this is a no-op normally,
+  //    but if a race during accept leaves activeRide set to a dead ride, clear it.
+  setTimeout(function() {
+    if (activeRide && activeRide._id) {
+      fetch(API + '/api/rides/' + activeRide._id + '/status', { headers: authHeaders() })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.success && d.ride && (d.ride.status === 'cancelled' || d.ride.status === 'completed')) {
+            resetActiveRide();
+            startRidePolling();
+          }
+        }).catch(function(){});
+    }
+  }, 3000);
 </script>
 </body>
 </html>
