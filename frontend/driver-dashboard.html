@@ -1216,7 +1216,20 @@
 
   function _doPollRides() {
       if (!driverData || !driverData.isOnline) return;
-      if (activeRide) return;
+      // If activeRide is stale (cancelled/completed on backend), clear it first
+      if (activeRide) {
+        var staleId = activeRide._id;
+        fetch(API + '/api/rides/' + staleId + '/status', { headers: authHeaders() })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d.success && d.ride && (d.ride.status === 'cancelled' || d.ride.status === 'completed')) {
+              stopActiveRidePoll();
+              resetActiveRide();
+              startRidePolling();
+            }
+          }).catch(function(){});
+        return;
+      }
 
       fetch(API + '/api/rides/pending', { headers: authHeaders() })
       .then(function(r) {
