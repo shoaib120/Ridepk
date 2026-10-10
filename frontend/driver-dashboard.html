@@ -1214,6 +1214,9 @@
     return null;
   }
 
+  // Track which ride IDs are currently displayed so we can detect stale cards
+  var displayedRideIds = {};
+
   function _doPollRides() {
       if (!driverData || !driverData.isOnline) return;
       if (activeRide) return;
@@ -1227,7 +1230,6 @@
         if (!data || !data.success) return;
 
         var now = Date.now();
-        var myType = myVehicleType();
 
         var rides = (data.rides || []).filter(function(r) {
           if (skippedRides[r._id] && (now - skippedRides[r._id]) < 60000) return false;
@@ -1238,15 +1240,53 @@
           if (now - skippedRides[id] >= 60000) delete skippedRides[id];
         });
 
+        // Build set of current pending ride IDs
+        var pendingIds = {};
+        rides.forEach(function(r) { pendingIds[r._id] = true; });
+
+        // Remove any displayed cards that are no longer in pending list
+        // (passenger cancelled, or another driver accepted them)
+        var staleRemoved = false;
+        Object.keys(displayedRideIds).forEach(function(id) {
+          if (!pendingIds[id]) {
+            var card = document.getElementById('rcard-' + id);
+            if (card) { card.remove(); staleRemoved = true; }
+            delete displayedRideIds[id];
+          }
+        });
+
         if (rides.length === 0) {
           currentRequest = null;
+          displayedRideIds = {};
           var wrap = document.getElementById('ride-request-wrap');
           wrap.classList.add('hidden');
           wrap.innerHTML = '';
+          updatePollStatus();
           return;
         }
 
-        showRideCards(rides.slice(0, 3));
+        // Only add NEW cards that aren't already displayed
+        var newRides = rides.filter(function(r) { return !displayedRideIds[r._id]; });
+        if (newRides.length > 0) {
+          var wrap = document.getElementById('ride-request-wrap');
+          wrap.classList.remove('hidden');
+          document.getElementById('poll-status-wrap').innerHTML = '';
+          newRides.slice(0, 3).forEach(function(r) {
+            displayedRideIds[r._id] = true;
+            var div = document.createElement('div');
+            div.innerHTML = buildRideCardHtml(r);
+            wrap.appendChild(div.firstChild);
+          });
+          if (rides.length > 0) currentRequest = rides[0];
+        } else if (staleRemoved) {
+          // Cards were removed, update currentRequest
+          var wrap = document.getElementById('ride-request-wrap');
+          if (!wrap.querySelector('.ride-request-card')) {
+            wrap.classList.add('hidden');
+            updatePollStatus();
+          }
+          currentRequest = rides.length > 0 ? rides[0] : null;
+        }
       })
       .catch(function(err) { console.warn('Ride poll error:', err); });
   }
@@ -1318,6 +1358,9 @@
     wrap.innerHTML = html;
     wrap.classList.remove('hidden');
     document.getElementById('poll-status-wrap').innerHTML = '';
+    // Update displayedRideIds to match
+    displayedRideIds = {};
+    rides.forEach(function(r) { displayedRideIds[r._id] = true; });
     // Set currentRequest to first for counter-offer compatibility
     if (rides.length > 0) currentRequest = rides[0];
   }
@@ -1328,6 +1371,7 @@
   function skipRide(rideId) {
     // Record skip time — this ride won't reappear for 60 seconds
     skippedRides[rideId] = Date.now();
+    delete displayedRideIds[rideId];
     var card = document.getElementById('rcard-' + rideId);
     if (card) card.remove();
     // If no cards left, hide wrap
@@ -1917,6 +1961,7 @@
 
   function resetActiveRide() {
     activeRide = null;
+    displayedRideIds = {};
     if (routeRefreshInterval) { clearInterval(routeRefreshInterval); routeRefreshInterval = null; }
     stopChatPolling();
     stopActiveRidePoll(); // ← must stop poll so it doesn't fire after driver-side cancel
