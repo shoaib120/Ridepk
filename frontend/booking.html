@@ -382,6 +382,7 @@
         <div class="spinner"></div>
         <div style="font-weight:700;color:#856404;margin-bottom:4px">Looking for a driver...</div>
         <div style="font-size:0.82rem;color:#856404" id="waiting-text">Request sent. Nearby drivers will be notified.</div>
+        <div style="font-size:0.85rem;color:#856404;margin-top:6px">⏱️ Auto-cancel in: <strong id="search-countdown">3:00</strong></div>
         <button class="btn-cancel-ride" onclick="openCancelModal()">Cancel Ride</button>
       </div>
 
@@ -1864,6 +1865,7 @@ function bookRide() {
       document.getElementById('waiting-text').textContent = fareMsg;
       showToast('✅ Ride request sent! Waiting for a driver.', '#27ae60');
       startPollingRideStatus();
+      startSearchCountdown();
     } else {
       showToast('❌ ' + (data.message || 'Could not send request.'), '#e74c3c');
       document.getElementById('btn-book').disabled    = false;
@@ -1875,6 +1877,31 @@ function bookRide() {
     document.getElementById('btn-book').disabled    = false;
     document.getElementById('btn-book').textContent = '🚗 Find a Driver';
   });
+}
+
+// ── Search countdown timer ──
+var searchCountdownInterval = null;
+function startSearchCountdown() {
+  stopSearchCountdown();
+  var totalSeconds = 3 * 60; // 3 minutes
+  var el = document.getElementById('search-countdown');
+  if (el) el.textContent = '3:00';
+  searchCountdownInterval = setInterval(function() {
+    totalSeconds--;
+    if (totalSeconds <= 0) {
+      stopSearchCountdown();
+      if (el) el.textContent = '0:00';
+      return;
+    }
+    var m = Math.floor(totalSeconds / 60);
+    var s = totalSeconds % 60;
+    if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+  }, 1000);
+}
+function stopSearchCountdown() {
+  if (searchCountdownInterval) { clearInterval(searchCountdownInterval); searchCountdownInterval = null; }
+  var el = document.getElementById('search-countdown');
+  if (el) el.textContent = '3:00';
 }
 
 // ── Poll ride status ──
@@ -2065,6 +2092,7 @@ function startActiveRidePolling() {
 
 // ── Show driver info after acceptance ──
 function showDriverFound(ride) {
+  stopSearchCountdown();
   rideAccepted = true;
   map.off('click');
   document.getElementById('pickup-input').disabled = true;
@@ -2242,6 +2270,7 @@ function doCancelRide(reason) {
 // keepForm = true  → preserve pickup/dest inputs so passenger can instantly rebook
 function resetBookingUI(keepForm) {
   rideAccepted = false;
+  stopSearchCountdown();
   if (rideSearchTimeout) { clearTimeout(rideSearchTimeout); rideSearchTimeout = null; }
   map.on('click', mapClickHandler);
   document.getElementById('pickup-input').disabled = false;
