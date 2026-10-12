@@ -1466,7 +1466,7 @@
         currentRequest = null;
         document.getElementById('ride-request-wrap').classList.add('hidden');
         document.getElementById('ride-request-wrap').innerHTML = '';
-        showActiveRide(data.ride, data.driver);
+        showActiveRide(activeRide, data.driver);  // use patched activeRide (passenger name/phone populated)
         showToast('✅ Ride accepted! Navigate to passenger pickup location.', '#27ae60');
       } else {
         showToast('❌ ' + (data.message || 'Could not accept ride.'), '#e74c3c');
@@ -1543,7 +1543,7 @@
     wrap.classList.remove('hidden');
     updatePollStatus();
 
-    setTimeout(function() { initNavMap(ride); }, 300);
+    setTimeout(function() { initNavMap(ride); }, 500);
 
     lastMessageAt = null;
     seenMsgIds = {};
@@ -1614,12 +1614,15 @@
     }
 
     navMap = L.map('nav-map', { zoomControl: true }).setView([centerLat, centerLng], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    var tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors', maxZoom: 19
     }).addTo(navMap);
-    // Force Leaflet to recalculate container size — fixes blank map when div was hidden
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 300);
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 800);
+    // Force Leaflet to recalculate container size — fixes blank map when div is freshly injected
+    // Multiple attempts: first one triggers layout, second ensures tiles filled in
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 100);
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 500);
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 1200);
+    tileLayer.once('load', function() { if (navMap) navMap.invalidateSize(true); });
 
     // Pickup marker (red)
     var pickupIcon = L.divIcon({

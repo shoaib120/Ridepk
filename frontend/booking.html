@@ -498,6 +498,7 @@ var chatPollInterval = null;
 var lastMessageTime  = null;
 var isChatOpen       = false;
 var myPassengerId    = null;   // set after booking
+var seenChatMsgIds   = {};     // deduplication: keyed by message _id or text fingerprint
 
 // ── Verified place coordinates — Mirpur Division & surrounding areas ──
 // These take priority over Nominatim to ensure correct geocoding for AJK places.
@@ -2248,9 +2249,12 @@ function confirmCancelRide() {
 }
 function doCancelRide(reason) {
   if (!currentRideId) return;
+  var hdrs = { 'Content-Type': 'application/json' };
+  var tok = localStorage.getItem('token');
+  if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
   fetch(API + '/api/rides/' + currentRideId + '/cancel', {
     method:  'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: hdrs,
     body:    JSON.stringify({ reason: reason, cancelledBy: 'passenger' })
   })
   .then(function(r) { return r.json(); })
@@ -2279,6 +2283,7 @@ function resetBookingUI(keepForm) {
   currentRideId    = null;
   isChatOpen       = false;
   lastMessageTime  = null;
+  seenChatMsgIds   = {};
   stopChatPolling();
   if (activeRidePollInterval) { clearInterval(activeRidePollInterval); activeRidePollInterval = null; }
 
@@ -2332,6 +2337,10 @@ function pollChatMessages() {
         data.messages.forEach(function(m) {
           // Show driver messages as "them"; passenger's own already shown optimistically
           if (m.senderType === 'driver') {
+            // Deduplicate: use _id if available, else text+time fingerprint
+            var msgKey = m._id ? ('id:' + m._id) : (m.text + '|' + (m.createdAt || m.sentAt || ''));
+            if (seenChatMsgIds[msgKey]) return; // already shown — skip
+            seenChatMsgIds[msgKey] = true;
             appendChatBubble(m, false);
           }
         });
