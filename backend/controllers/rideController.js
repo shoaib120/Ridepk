@@ -206,30 +206,25 @@ const cancelRide = async (req, res) => {
       return res.status(400).json({ message: 'Cannot cancel a ' + ride.status + ' ride.' });
     }
 
-    ride.status      = 'cancelled';
-    ride.cancelledAt = new Date();
+    // Determine cancel reason
+    const incomingReason = (req.body && (req.body.reason || req.body.cancelReason)) || null;
 
-    // Save cancel reason if provided
-    const incomingReason = req.body && (req.body.reason || req.body.cancelReason);
-    console.log('[cancelRide] body:', JSON.stringify(req.body), '| incomingReason:', incomingReason);
-    if (incomingReason) {
-      ride.cancelReason = incomingReason;
-      ride.markModified('cancelReason');
-    }
-
-    // Try to figure out who cancelled
+    // Determine who cancelled
+    let cancelledBy = null;
     if (req.user) {
       const isPassenger = ride.passenger && String(ride.passenger) === String(req.user._id);
-      ride.cancelledBy  = isPassenger ? 'passenger' : 'driver';
+      cancelledBy = isPassenger ? 'passenger' : 'driver';
     }
-    // Allow explicit override from body (for driver cancelling on passenger's behalf)
     if (req.body && req.body.cancelledBy) {
-      ride.cancelledBy = req.body.cancelledBy;
-      ride.markModified('cancelledBy');
+      cancelledBy = req.body.cancelledBy;
     }
 
-    await ride.save();
-    console.log('[cancelRide] saved — cancelReason:', ride.cancelReason, '| cancelledBy:', ride.cancelledBy);
+    // Use findByIdAndUpdate + $set for atomic write — bypasses Mongoose dirty-tracking
+    const updated = await Ride.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: 'cancelled', cancelledAt: new Date(), cancelReason: incomingReason, cancelledBy: cancelledBy } },
+      { new: true }
+    );
 
     // Free the driver if one was assigned
     if (ride.driver) {
@@ -238,7 +233,7 @@ const cancelRide = async (req, res) => {
 
     try {
       const io = req.app.get('io');
-      if (io) io.emit('ride:cancelled', { rideId: ride._id, cancelledBy: ride.cancelledBy, cancelReason: ride.cancelReason });
+      if (io) io.emit('ride:cancelled', { rideId: ride._id, cancelledBy: cancelledBy, cancelReason: incomingReason });
     } catch (_) {}
 
     res.json({ success: true, message: 'Ride cancelled.' });
