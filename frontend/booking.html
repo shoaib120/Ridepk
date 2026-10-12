@@ -1964,18 +1964,24 @@ function startPollingRideStatus() {
               document.getElementById('drv-cancel-modal').classList.add('show');
               rideAccepted = false; activeRideId = null;
             }
-            if (cancelReason2 && cancelReason2 !== 'No reason provided') {
-              showDrvCancelModal2(cancelReason2);
-            } else if (rideId2cancel) {
-              fetch(API + '/api/rides/' + rideId2cancel + '/status')
-              .then(function(r) { return r.json(); })
-              .then(function(fresh) {
-                var freshReason2 = (fresh.ride && fresh.ride.cancelReason) || cancelReason2 || 'No reason provided';
-                showDrvCancelModal2(freshReason2);
-              })
-              .catch(function() { showDrvCancelModal2(cancelReason2); });
+            if (rideId2cancel) {
+              (function fetchDrvReason2(attempt) {
+                setTimeout(function() {
+                  fetch(API + '/api/rides/' + rideId2cancel + '/status')
+                  .then(function(r) { return r.json(); })
+                  .then(function(fresh) {
+                    var freshReason2 = (fresh.ride && fresh.ride.cancelReason) || '';
+                    if (!freshReason2 && attempt < 3) {
+                      fetchDrvReason2(attempt + 1);
+                    } else {
+                      showDrvCancelModal2(freshReason2 || cancelReason2 || 'No reason provided');
+                    }
+                  })
+                  .catch(function() { showDrvCancelModal2(cancelReason2 || 'No reason provided'); });
+                }, attempt === 1 ? 800 : 1500);
+              })(1);
             } else {
-              showDrvCancelModal2(cancelReason2);
+              showDrvCancelModal2(cancelReason2 || 'No reason provided');
             }
           } else if (cancelledBy2 === 'system') {
             showToast('⏱️ No driver found. Please try again.', '#e74c3c');
@@ -2097,17 +2103,25 @@ function startActiveRidePolling() {
               document.getElementById('drv-cancel-modal').classList.add('show');
             }
 
-            // Always re-fetch to get the latest cancelReason saved to DB
+            // Re-fetch with delay + retry — cancel reason may not be saved yet
             if (rideId4cancel) {
-              fetch(API + '/api/rides/' + rideId4cancel + '/status')
-              .then(function(r) { return r.json(); })
-              .then(function(fresh) {
-                var freshReason = (fresh.ride && fresh.ride.cancelReason) || cancelReason || 'No reason provided';
-                showDrvCancelModal(freshReason);
-              })
-              .catch(function() { showDrvCancelModal(cancelReason); });
+              (function fetchDrvReason(attempt) {
+                setTimeout(function() {
+                  fetch(API + '/api/rides/' + rideId4cancel + '/status')
+                  .then(function(r) { return r.json(); })
+                  .then(function(fresh) {
+                    var freshReason = (fresh.ride && fresh.ride.cancelReason) || '';
+                    if (!freshReason && attempt < 3) {
+                      fetchDrvReason(attempt + 1);
+                    } else {
+                      showDrvCancelModal(freshReason || cancelReason || 'No reason provided');
+                    }
+                  })
+                  .catch(function() { showDrvCancelModal(cancelReason || 'No reason provided'); });
+                }, attempt === 1 ? 800 : 1500);
+              })(1);
             } else {
-              showDrvCancelModal(cancelReason);
+              showDrvCancelModal(cancelReason || 'No reason provided');
             }
             // Reset ride state but keep booking form intact so passenger can rebook
             rideAccepted = false;

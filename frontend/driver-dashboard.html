@@ -2226,13 +2226,24 @@
               document.getElementById('pax-cancel-modal').classList.add('show');
             }
 
-            // Always re-fetch to get populated passenger + saved cancelReason
-            fetch(API + '/api/rides/' + rideId + '/status', { headers: authHeaders() })
-            .then(function(r) { return r.json(); })
-            .then(function(fresh) {
-              showPaxCancelModalFull(fresh.ride || freshRide);
-            })
-            .catch(function() { showPaxCancelModalFull(freshRide); });
+            // Re-fetch with delay — cancel may have just been saved, give DB 800ms to commit
+            function fetchAndShowPaxModal(attempt) {
+              setTimeout(function() {
+                fetch(API + '/api/rides/' + rideId + '/status', { headers: authHeaders() })
+                .then(function(r) { return r.json(); })
+                .then(function(fresh) {
+                  var rd = fresh.ride || freshRide;
+                  var hasReason = rd.cancelReason && rd.cancelReason !== 'null';
+                  if (!hasReason && attempt < 3) {
+                    fetchAndShowPaxModal(attempt + 1); // retry up to 3x
+                  } else {
+                    showPaxCancelModalFull(rd);
+                  }
+                })
+                .catch(function() { showPaxCancelModalFull(freshRide); });
+              }, attempt === 1 ? 800 : 1500);
+            }
+            fetchAndShowPaxModal(1);
           } else {
             // System or driver-side cancel — just toast
             showToast('🚫 Ride was cancelled' + (cancelReason !== 'No reason provided' ? ': ' + cancelReason : '.'), '#e74c3c');
