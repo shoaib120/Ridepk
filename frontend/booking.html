@@ -2061,19 +2061,40 @@ function startActiveRidePolling() {
 
           if (cancelledBy === 'driver' && data.ride && data.ride.driver) {
             // Show full driver-cancel modal
-            var drv  = data.ride.driver;
-            var dName  = drv.fullName || 'Driver';
-            var dPhone = drv.phone    || '—';
-            var dVeh   = drv.vehicle  ? (drv.vehicle.make || '') + ' ' + (drv.vehicle.model || '') + ' (' + (drv.vehicle.plate || drv.vehicle.plateNumber || '—') + ')' : '—';
-            var detEl  = document.getElementById('drv-cancel-details');
-            if (detEl) {
-              detEl.innerHTML =
-                '<div><strong>👤 Driver:</strong> ' + dName + '</div>' +
-                '<div><strong>📞 Phone:</strong> <a href="tel:' + dPhone + '" style="color:#e74c3c">' + dPhone + '</a></div>' +
-                '<div><strong>🚗 Vehicle:</strong> ' + dVeh + '</div>' +
-                '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f5c6cb"><strong>❌ Reason:</strong> ' + cancelReason + '</div>';
+            var drv    = data.ride.driver;
+            var dName  = (typeof drv === 'object' && drv.fullName) ? drv.fullName : 'Driver';
+            var dPhone = (typeof drv === 'object' && drv.phone)    ? drv.phone    : '—';
+            var dVeh   = (typeof drv === 'object' && drv.vehicle)
+              ? ((drv.vehicle.make || '') + ' ' + (drv.vehicle.model || '') + ' (' + (drv.vehicle.plate || drv.vehicle.plateNumber || '—') + ')').trim()
+              : '—';
+            var rideId4cancel = currentRideId || (data.ride && data.ride._id);
+
+            function showDrvCancelModal(reason) {
+              var detEl = document.getElementById('drv-cancel-details');
+              if (detEl) {
+                detEl.innerHTML =
+                  '<div><strong>👤 Driver:</strong> ' + dName + '</div>' +
+                  '<div><strong>📞 Phone:</strong> <a href="tel:' + dPhone + '" style="color:#e74c3c">' + dPhone + '</a></div>' +
+                  '<div><strong>🚗 Vehicle:</strong> ' + dVeh + '</div>' +
+                  '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f5c6cb"><strong>❌ Reason:</strong> ' + (reason || 'No reason provided') + '</div>';
+              }
+              document.getElementById('drv-cancel-modal').classList.add('show');
             }
-            document.getElementById('drv-cancel-modal').classList.add('show');
+
+            // Re-fetch to get the cancelReason that was just saved to DB
+            if (cancelReason && cancelReason !== 'No reason provided') {
+              showDrvCancelModal(cancelReason);
+            } else if (rideId4cancel) {
+              fetch(API + '/api/rides/' + rideId4cancel + '/status')
+              .then(function(r) { return r.json(); })
+              .then(function(fresh) {
+                var freshReason = (fresh.ride && fresh.ride.cancelReason) || cancelReason || 'No reason provided';
+                showDrvCancelModal(freshReason);
+              })
+              .catch(function() { showDrvCancelModal(cancelReason); });
+            } else {
+              showDrvCancelModal(cancelReason);
+            }
             // Reset ride state but keep booking form intact so passenger can rebook
             rideAccepted = false;
             activeRideId = null;

@@ -688,6 +688,9 @@
   var currentRequest  = null;   // kept for compatibility (first shown ride)
   var activeRide      = null;
   var skippedRides    = {};     // { rideId: timestampMs } — skip cooldown tracking (1 min)
+  // Saved at accept time — guaranteed populated from getPendingRides which populates passenger
+  var savedPassengerName  = '';
+  var savedPassengerPhone = '';
   var navMap          = null;
   var navRouteLayer   = null;
   var navPickupMarker = null;
@@ -1450,6 +1453,15 @@
     // The /accept response may return an unpopulated passenger field
     var preAcceptRide = currentRequest || null;
 
+    // Save passenger name/phone immediately from the pending ride card (always populated by getPendingRides)
+    if (preAcceptRide && preAcceptRide.passenger) {
+      savedPassengerName  = preAcceptRide.passenger.name  || preAcceptRide.passengerName  || '';
+      savedPassengerPhone = preAcceptRide.passenger.phone || preAcceptRide.passengerPhone || '';
+    } else if (preAcceptRide) {
+      savedPassengerName  = preAcceptRide.passengerName  || '';
+      savedPassengerPhone = preAcceptRide.passengerPhone || '';
+    }
+
     fetch(API + '/api/rides/' + rideId + '/accept', { method: 'PUT', headers: authHeaders() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -1965,6 +1977,8 @@
 
   function resetActiveRide() {
     activeRide = null;
+    savedPassengerName  = '';
+    savedPassengerPhone = '';
     displayedRideIds = {};
     if (routeRefreshInterval) { clearInterval(routeRefreshInterval); routeRefreshInterval = null; }
     stopChatPolling();
@@ -2177,31 +2191,50 @@
           var isPassenger  = cancelledBy === 'passenger' || (cancelledBy !== 'driver' && cancelledBy !== 'system');
 
           if (isPassenger) {
-            // data.ride.passenger is often an ObjectId (not populated), so fall back to
-            // activeRide which was populated at accept time
             var freshRide = data.ride || {};
-            var pName  = (freshRide.passenger && freshRide.passenger.name)
+            // Use savedPassengerName/Phone captured at accept time — most reliable source
+            var pName  = savedPassengerName
+                      || (freshRide.passenger && freshRide.passenger.name)
                       || (activeRide && activeRide.passenger && activeRide.passenger.name)
                       || freshRide.passengerName
                       || (activeRide && activeRide.passengerName)
                       || 'Passenger';
-            var pPhone = (freshRide.passenger && freshRide.passenger.phone)
+            var pPhone = savedPassengerPhone
+                      || (freshRide.passenger && freshRide.passenger.phone)
                       || (activeRide && activeRide.passenger && activeRide.passenger.phone)
                       || freshRide.passengerPhone
                       || (activeRide && activeRide.passengerPhone)
                       || '—';
             var pDest  = (freshRide.destination && freshRide.destination.address) || (activeRide && activeRide.destination && activeRide.destination.address) || '—';
             var pVtype = freshRide.vehicleType || (activeRide && activeRide.vehicleType) || 'car';
-            var detailsEl = document.getElementById('pax-cancel-details');
-            if (detailsEl) {
-              detailsEl.innerHTML =
-                '<div><strong>👤 Passenger:</strong> ' + pName + '</div>' +
-                '<div><strong>📞 Phone:</strong> <a href="tel:' + pPhone + '" style="color:#e74c3c">' + pPhone + '</a></div>' +
-                '<div><strong>📍 Destination:</strong> ' + pDest + '</div>' +
-                '<div><strong>🚗 Vehicle:</strong> ' + pVtype.charAt(0).toUpperCase() + pVtype.slice(1) + '</div>' +
-                '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f5c6cb"><strong>❌ Reason:</strong> ' + cancelReason + '</div>';
+
+            // Show modal immediately with what we have, then re-fetch to get cancelReason
+            function showPaxCancelModal(reason) {
+              var detailsEl = document.getElementById('pax-cancel-details');
+              if (detailsEl) {
+                detailsEl.innerHTML =
+                  '<div><strong>👤 Passenger:</strong> ' + pName + '</div>' +
+                  '<div><strong>📞 Phone:</strong> <a href="tel:' + pPhone + '" style="color:#e74c3c">' + pPhone + '</a></div>' +
+                  '<div><strong>📍 Destination:</strong> ' + pDest + '</div>' +
+                  '<div><strong>🚗 Vehicle:</strong> ' + pVtype.charAt(0).toUpperCase() + pVtype.slice(1) + '</div>' +
+                  '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f5c6cb"><strong>❌ Reason:</strong> ' + (reason || 'No reason provided') + '</div>';
+              }
+              document.getElementById('pax-cancel-modal').classList.add('show');
             }
-            document.getElementById('pax-cancel-modal').classList.add('show');
+
+            // Try to get fresh cancelReason from DB (poll data may have arrived before it was saved)
+            if (cancelReason && cancelReason !== 'No reason provided') {
+              showPaxCancelModal(cancelReason);
+            } else {
+              // Re-fetch once to get the saved reason
+              fetch(API + '/api/rides/' + rideId + '/status', { headers: authHeaders() })
+              .then(function(r) { return r.json(); })
+              .then(function(fresh) {
+                var freshReason = (fresh.ride && fresh.ride.cancelReason) || cancelReason || 'No reason provided';
+                showPaxCancelModal(freshReason);
+              })
+              .catch(function() { showPaxCancelModal(cancelReason); });
+            }
           } else {
             // System or driver-side cancel — just toast
             showToast('🚫 Ride was cancelled' + (cancelReason !== 'No reason provided' ? ': ' + cancelReason : '.'), '#e74c3c');
