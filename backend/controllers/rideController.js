@@ -174,7 +174,8 @@ const acceptRide = async (req, res) => {
 const getRideStatus = async (req, res) => {
   try {
     const ride = await Ride.findById(req.params.id)
-      .populate('driver', 'fullName phone vehicle rating location profilePhoto');
+      .populate('driver',    'fullName phone vehicle rating location profilePhoto')
+      .populate('passenger', 'name phone');
 
     if (!ride) return res.status(404).json({ message: 'Ride not found.' });
 
@@ -204,13 +205,27 @@ const cancelRide = async (req, res) => {
     ride.status      = 'cancelled';
     ride.cancelledAt = new Date();
 
+    // Save cancel reason if provided
+    const incomingReason = req.body && (req.body.reason || req.body.cancelReason);
+    console.log('[cancelRide] body:', JSON.stringify(req.body), '| incomingReason:', incomingReason);
+    if (incomingReason) {
+      ride.cancelReason = incomingReason;
+      ride.markModified('cancelReason');
+    }
+
     // Try to figure out who cancelled
     if (req.user) {
       const isPassenger = ride.passenger && String(ride.passenger) === String(req.user._id);
       ride.cancelledBy  = isPassenger ? 'passenger' : 'driver';
     }
+    // Allow explicit override from body (for driver cancelling on passenger's behalf)
+    if (req.body && req.body.cancelledBy) {
+      ride.cancelledBy = req.body.cancelledBy;
+      ride.markModified('cancelledBy');
+    }
 
     await ride.save();
+    console.log('[cancelRide] saved — cancelReason:', ride.cancelReason, '| cancelledBy:', ride.cancelledBy);
 
     // Free the driver if one was assigned
     if (ride.driver) {
@@ -219,7 +234,7 @@ const cancelRide = async (req, res) => {
 
     try {
       const io = req.app.get('io');
-      if (io) io.emit('ride:cancelled', { rideId: ride._id });
+      if (io) io.emit('ride:cancelled', { rideId: ride._id, cancelledBy: ride.cancelledBy, cancelReason: ride.cancelReason });
     } catch (_) {}
 
     res.json({ success: true, message: 'Ride cancelled.' });
