@@ -221,9 +221,13 @@ const cancelRide = async (req, res) => {
     }
 
     // Use findByIdAndUpdate + $set for atomic write — bypasses Mongoose dirty-tracking
+    const updateDoc = { $set: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: cancelledBy } };
+    if (incomingReason) {
+      updateDoc.$set.cancelReason = incomingReason;
+    }
     const updated = await Ride.findByIdAndUpdate(
       req.params.id,
-      { $set: { status: 'cancelled', cancelledAt: new Date(), cancelReason: incomingReason, cancelledBy: cancelledBy } },
+      updateDoc,
       { new: true }
     );
 
