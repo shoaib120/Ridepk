@@ -179,6 +179,10 @@ const getRideStatus = async (req, res) => {
 
     if (!ride) return res.status(404).json({ message: 'Ride not found.' });
 
+    if (ride.status === 'cancelled') {
+      console.log('[getRideStatus] cancelled ride — cancelReason:', ride.cancelReason, '| cancelledBy:', ride.cancelledBy);
+    }
+
     res.json({
       success: true,
       status:  ride.status,
