@@ -175,7 +175,8 @@ const getRideStatus = async (req, res) => {
   try {
     const ride = await Ride.findById(req.params.id)
       .populate('driver',    'fullName phone vehicle rating location profilePhoto')
-      .populate('passenger', 'name phone');
+      .populate('passenger', 'name phone')
+      .lean();
 
     if (!ride) return res.status(404).json({ message: 'Ride not found.' });
 
