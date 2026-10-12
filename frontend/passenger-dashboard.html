@@ -462,6 +462,7 @@
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap', maxZoom: 18
       }).addTo(paxMap);
+      setTimeout(function(){ if(paxMap) paxMap.invalidateSize(true); }, 300);
 
       if (pickup) {
         var pickupIcon = L.divIcon({ className:'',
@@ -488,6 +489,11 @@
         var dLng = dLoc.lng || (Array.isArray(dLoc.coordinates) ? dLoc.coordinates[0] : undefined);
         if (dLat && dLng) updateDriverMarker(Number(dLat), Number(dLng));
       }
+
+      // Force Leaflet to recalculate container size after dynamic DOM injection
+      setTimeout(function() {
+        if (paxMap) { paxMap.invalidateSize(true); }
+      }, 300);
     }
 
     function drawPaxRoute(from, to) {
@@ -757,7 +763,7 @@
           '<button class="btn-back" style="margin-top:12px" onclick="cancelRide(\''+ride._id+'\')">✕ Cancel Ride</button>' +
         '</div>';
 
-      setTimeout(function(){ initPaxMap(ride); }, 150);
+      setTimeout(function(){ initPaxMap(ride); }, 300);
       if (hasDriver) startPaxChat(ride._id);
     }
 
