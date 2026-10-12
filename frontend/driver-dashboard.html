@@ -2191,7 +2191,8 @@
           stopActiveRidePoll();
           stopChatPolling();
           var cancelledBy  = (data.ride && data.ride.cancelledBy)  || 'passenger';
-          var cancelReason = (data.ride && (data.ride.cancelReason || data.ride.reason || data.ride.cancelledReason)) || 'No reason provided';
+          var _dcr = data.ride && (data.ride.cancelReason || data.ride.reason || data.ride.cancelledReason);
+          var cancelReason = (_dcr && _dcr !== 'null' && _dcr !== 'undefined') ? _dcr : 'No reason provided';
           // If cancelledBy is not explicitly 'driver' or 'system', treat as passenger cancel
           var isPassenger  = cancelledBy === 'passenger' || (cancelledBy !== 'driver' && cancelledBy !== 'system');
 
@@ -2213,7 +2214,8 @@
                         || '—';
               var pDest  = (rd.destination && rd.destination.address) || (activeRide && activeRide.destination && activeRide.destination.address) || '—';
               var pVtype = rd.vehicleType || (activeRide && activeRide.vehicleType) || 'car';
-              var reason = reasonOverride || rd.cancelReason || cancelReason || 'No reason provided';
+              var _r = reasonOverride || rd.cancelReason || cancelReason;
+              var reason = (_r && _r !== 'null' && _r !== 'undefined') ? _r : 'No reason provided';
               var detailsEl = document.getElementById('pax-cancel-details');
               if (detailsEl) {
                 detailsEl.innerHTML =
@@ -2226,24 +2228,18 @@
               document.getElementById('pax-cancel-modal').classList.add('show');
             }
 
-            // Re-fetch with delay — cancel may have just been saved, give DB 800ms to commit
-            function fetchAndShowPaxModal(attempt) {
+            // Show immediately if reason already in poll data, else re-fetch once
+            var paxCancelReason = freshRide.cancelReason;
+            if (paxCancelReason && paxCancelReason !== 'null' && paxCancelReason !== 'undefined') {
+              showPaxCancelModalFull(freshRide);
+            } else {
               setTimeout(function() {
                 fetch(API + '/api/rides/' + rideId + '/status', { headers: authHeaders() })
                 .then(function(r) { return r.json(); })
-                .then(function(fresh) {
-                  var rd = fresh.ride || freshRide;
-                  var hasReason = rd.cancelReason && rd.cancelReason !== 'null';
-                  if (!hasReason && attempt < 3) {
-                    fetchAndShowPaxModal(attempt + 1); // retry up to 3x
-                  } else {
-                    showPaxCancelModalFull(rd);
-                  }
-                })
+                .then(function(fresh) { showPaxCancelModalFull(fresh.ride || freshRide); })
                 .catch(function() { showPaxCancelModalFull(freshRide); });
-              }, attempt === 1 ? 800 : 1500);
+              }, 1000);
             }
-            fetchAndShowPaxModal(1);
           } else {
             // System or driver-side cancel — just toast
             showToast('🚫 Ride was cancelled' + (cancelReason !== 'No reason provided' ? ': ' + cancelReason : '.'), '#e74c3c');

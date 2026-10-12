@@ -1947,7 +1947,8 @@ function startPollingRideStatus() {
           clearInterval(pollInterval);
           clearTimeout(rideSearchTimeout);
           var cancelledBy2  = data.ride.cancelledBy  || 'unknown';
-          var cancelReason2 = data.ride.cancelReason || 'No reason provided';
+          var _cr2 = data.ride.cancelReason;
+          var cancelReason2 = (_cr2 && _cr2 !== 'null' && _cr2 !== 'undefined') ? _cr2 : 'No reason provided';
           if (cancelledBy2 === 'driver' && data.ride.driver) {
             var drv2      = data.ride.driver;
             var rideId2cancel = currentRideId || (data.ride && data.ride._id);
@@ -1964,24 +1965,20 @@ function startPollingRideStatus() {
               document.getElementById('drv-cancel-modal').classList.add('show');
               rideAccepted = false; activeRideId = null;
             }
-            if (rideId2cancel) {
-              (function fetchDrvReason2(attempt) {
-                setTimeout(function() {
-                  fetch(API + '/api/rides/' + rideId2cancel + '/status')
-                  .then(function(r) { return r.json(); })
-                  .then(function(fresh) {
-                    var freshReason2 = (fresh.ride && fresh.ride.cancelReason) || '';
-                    if (!freshReason2 && attempt < 3) {
-                      fetchDrvReason2(attempt + 1);
-                    } else {
-                      showDrvCancelModal2(freshReason2 || cancelReason2 || 'No reason provided');
-                    }
-                  })
-                  .catch(function() { showDrvCancelModal2(cancelReason2 || 'No reason provided'); });
-                }, attempt === 1 ? 800 : 1500);
-              })(1);
+            if (cancelReason2 !== 'No reason provided') {
+              showDrvCancelModal2(cancelReason2);
+            } else if (rideId2cancel) {
+              setTimeout(function() {
+                fetch(API + '/api/rides/' + rideId2cancel + '/status')
+                .then(function(r) { return r.json(); })
+                .then(function(fresh) {
+                  var fr2 = fresh.ride && fresh.ride.cancelReason;
+                  showDrvCancelModal2((fr2 && fr2 !== 'null') ? fr2 : 'No reason provided');
+                })
+                .catch(function() { showDrvCancelModal2(cancelReason2); });
+              }, 1000);
             } else {
-              showDrvCancelModal2(cancelReason2 || 'No reason provided');
+              showDrvCancelModal2(cancelReason2);
             }
           } else if (cancelledBy2 === 'system') {
             showToast('⏱️ No driver found. Please try again.', '#e74c3c');
@@ -2079,7 +2076,8 @@ function startActiveRidePolling() {
           clearInterval(activeRidePollInterval);
           stopChatPolling();
           var cancelledBy  = (data.ride && data.ride.cancelledBy)  || 'unknown';
-          var cancelReason = (data.ride && data.ride.cancelReason) || 'No reason provided';
+          var _cr = data.ride && data.ride.cancelReason;
+          var cancelReason = (_cr && _cr !== 'null' && _cr !== 'undefined') ? _cr : 'No reason provided';
 
           if (cancelledBy === 'driver' && data.ride && data.ride.driver) {
             // Show full driver-cancel modal
@@ -2103,25 +2101,22 @@ function startActiveRidePolling() {
               document.getElementById('drv-cancel-modal').classList.add('show');
             }
 
-            // Re-fetch with delay + retry — cancel reason may not be saved yet
-            if (rideId4cancel) {
-              (function fetchDrvReason(attempt) {
-                setTimeout(function() {
-                  fetch(API + '/api/rides/' + rideId4cancel + '/status')
-                  .then(function(r) { return r.json(); })
-                  .then(function(fresh) {
-                    var freshReason = (fresh.ride && fresh.ride.cancelReason) || '';
-                    if (!freshReason && attempt < 3) {
-                      fetchDrvReason(attempt + 1);
-                    } else {
-                      showDrvCancelModal(freshReason || cancelReason || 'No reason provided');
-                    }
-                  })
-                  .catch(function() { showDrvCancelModal(cancelReason || 'No reason provided'); });
-                }, attempt === 1 ? 800 : 1500);
-              })(1);
+            // Show immediately — backend saves reason before poll can detect cancelled
+            if (cancelReason !== 'No reason provided') {
+              showDrvCancelModal(cancelReason);
+            } else if (rideId4cancel) {
+              // Fallback: re-fetch once in case of race
+              setTimeout(function() {
+                fetch(API + '/api/rides/' + rideId4cancel + '/status')
+                .then(function(r) { return r.json(); })
+                .then(function(fresh) {
+                  var fr = fresh.ride && fresh.ride.cancelReason;
+                  showDrvCancelModal((fr && fr !== 'null') ? fr : 'No reason provided');
+                })
+                .catch(function() { showDrvCancelModal('No reason provided'); });
+              }, 1000);
             } else {
-              showDrvCancelModal(cancelReason || 'No reason provided');
+              showDrvCancelModal(cancelReason);
             }
             // Reset ride state but keep booking form intact so passenger can rebook
             rideAccepted = false;
