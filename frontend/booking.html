@@ -2335,7 +2335,8 @@ function pollChatMessages() {
             appendChatBubble(m, false);
           }
         });
-        lastMessageTime = data.messages[data.messages.length - 1].sentAt;
+        var lastMsg = data.messages[data.messages.length - 1];
+        lastMessageTime = lastMsg.createdAt || lastMsg.sentAt || null;
       }
       // Auto-reset chat if ride completed or cancelled
       if (data.rideStatus === 'completed' || data.rideStatus === 'cancelled') {
@@ -2366,7 +2367,7 @@ function sendChatMessage() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success && data.message) {
-      lastMessageTime = data.message.sentAt;
+      lastMessageTime = data.message.createdAt || data.message.sentAt || null;
     }
   })
   .catch(function() {});
@@ -2381,7 +2382,11 @@ function appendChatBubble(msg, isMine) {
 
   var bubble = document.createElement('div');
   bubble.className = 'chat-bubble ' + (isMine ? 'me' : 'them');
-  var time = new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  var ts = msg.createdAt || msg.sentAt || null;
+  var _d = ts ? new Date(ts) : null;
+  var time = (_d && !isNaN(_d.getTime()))
+    ? _d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   var label = isMine ? '' : '<strong>' + (msg.senderType === 'driver' ? 'Driver' : msg.senderName || 'Driver') + ': </strong>';
   bubble.innerHTML = label + msg.text + '<div class="bubble-time">' + time + '</div>';
   wrap.appendChild(bubble);

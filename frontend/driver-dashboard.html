@@ -1543,7 +1543,7 @@
     wrap.classList.remove('hidden');
     updatePollStatus();
 
-    setTimeout(function() { initNavMap(ride); }, 100);
+    setTimeout(function() { initNavMap(ride); }, 300);
 
     lastMessageAt = null;
     seenMsgIds = {};
@@ -1618,7 +1618,8 @@
       attribution: '© OpenStreetMap contributors', maxZoom: 19
     }).addTo(navMap);
     // Force Leaflet to recalculate container size — fixes blank map when div was hidden
-    setTimeout(function() { if (navMap) navMap.invalidateSize(); }, 300);
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 300);
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 800);
 
     // Pickup marker (red)
     var pickupIcon = L.divIcon({
@@ -1976,6 +1977,7 @@
     document.getElementById('active-ride-wrap').classList.add('hidden');
     document.getElementById('active-ride-wrap').innerHTML = '';
     updatePollStatus();
+    startRidePolling(); // auto-show new ride requests without page refresh
   }
 
   // ════════════════════════════════════════
@@ -2168,7 +2170,8 @@
           stopChatPolling();
           var cancelledBy  = (data.ride && data.ride.cancelledBy)  || 'passenger';
           var cancelReason = (data.ride && (data.ride.cancelReason || data.ride.reason || data.ride.cancelledReason)) || 'No reason provided';
-          var isPassenger  = cancelledBy === 'passenger';
+          // If cancelledBy is not explicitly 'driver' or 'system', treat as passenger cancel
+          var isPassenger  = cancelledBy === 'passenger' || (cancelledBy !== 'driver' && cancelledBy !== 'system');
 
           if (isPassenger) {
             // data.ride.passenger is often an ObjectId (not populated), so fall back to
