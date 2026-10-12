@@ -1949,18 +1949,34 @@ function startPollingRideStatus() {
           var cancelledBy2  = data.ride.cancelledBy  || 'unknown';
           var cancelReason2 = data.ride.cancelReason || 'No reason provided';
           if (cancelledBy2 === 'driver' && data.ride.driver) {
-            var drv2   = data.ride.driver;
-            var detEl2 = document.getElementById('drv-cancel-details');
-            if (detEl2) {
-              var dVeh2 = drv2.vehicle ? (drv2.vehicle.make || '') + ' ' + (drv2.vehicle.model || '') + ' (' + (drv2.vehicle.plate || drv2.vehicle.plateNumber || '—') + ')' : '—';
-              detEl2.innerHTML =
-                '<div><strong>👤 Driver:</strong> ' + (drv2.fullName || 'Driver') + '</div>' +
-                '<div><strong>📞 Phone:</strong> <a href="tel:' + (drv2.phone || '') + '" style="color:#e74c3c">' + (drv2.phone || '—') + '</a></div>' +
-                '<div><strong>🚗 Vehicle:</strong> ' + dVeh2 + '</div>' +
-                '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f5c6cb"><strong>❌ Reason:</strong> ' + cancelReason2 + '</div>';
+            var drv2      = data.ride.driver;
+            var rideId2cancel = currentRideId || (data.ride && data.ride._id);
+            function showDrvCancelModal2(reason) {
+              var detEl2 = document.getElementById('drv-cancel-details');
+              if (detEl2) {
+                var dVeh2 = drv2.vehicle ? (drv2.vehicle.make || '') + ' ' + (drv2.vehicle.model || '') + ' (' + (drv2.vehicle.plate || drv2.vehicle.plateNumber || '—') + ')' : '—';
+                detEl2.innerHTML =
+                  '<div><strong>👤 Driver:</strong> ' + (drv2.fullName || 'Driver') + '</div>' +
+                  '<div><strong>📞 Phone:</strong> <a href="tel:' + (drv2.phone || '') + '" style="color:#e74c3c">' + (drv2.phone || '—') + '</a></div>' +
+                  '<div><strong>🚗 Vehicle:</strong> ' + dVeh2 + '</div>' +
+                  '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f5c6cb"><strong>❌ Reason:</strong> ' + (reason || 'No reason provided') + '</div>';
+              }
+              document.getElementById('drv-cancel-modal').classList.add('show');
+              rideAccepted = false; activeRideId = null;
             }
-            document.getElementById('drv-cancel-modal').classList.add('show');
-            rideAccepted = false; activeRideId = null;
+            if (cancelReason2 && cancelReason2 !== 'No reason provided') {
+              showDrvCancelModal2(cancelReason2);
+            } else if (rideId2cancel) {
+              fetch(API + '/api/rides/' + rideId2cancel + '/status')
+              .then(function(r) { return r.json(); })
+              .then(function(fresh) {
+                var freshReason2 = (fresh.ride && fresh.ride.cancelReason) || cancelReason2 || 'No reason provided';
+                showDrvCancelModal2(freshReason2);
+              })
+              .catch(function() { showDrvCancelModal2(cancelReason2); });
+            } else {
+              showDrvCancelModal2(cancelReason2);
+            }
           } else if (cancelledBy2 === 'system') {
             showToast('⏱️ No driver found. Please try again.', '#e74c3c');
             resetBookingUI();
@@ -2081,10 +2097,8 @@ function startActiveRidePolling() {
               document.getElementById('drv-cancel-modal').classList.add('show');
             }
 
-            // Re-fetch to get the cancelReason that was just saved to DB
-            if (cancelReason && cancelReason !== 'No reason provided') {
-              showDrvCancelModal(cancelReason);
-            } else if (rideId4cancel) {
+            // Always re-fetch to get the latest cancelReason saved to DB
+            if (rideId4cancel) {
               fetch(API + '/api/rides/' + rideId4cancel + '/status')
               .then(function(r) { return r.json(); })
               .then(function(fresh) {

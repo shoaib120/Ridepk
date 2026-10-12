@@ -1449,17 +1449,19 @@
     var btn = document.querySelector('.btn-accept');
     if (btn) { btn.disabled = true; btn.textContent = 'Accepting...'; }
 
-    // Save the full pending-ride object BEFORE accepting — it has passenger populated
-    // The /accept response may return an unpopulated passenger field
-    var preAcceptRide = currentRequest || null;
+    // Find the specific ride being accepted from displayed rides (currentRequest may be rides[0] not the clicked one)
+    var preAcceptRide = null;
+    // Try to find the exact ride by rideId from currentRequest or displayed rides data
+    if (currentRequest && currentRequest._id === rideId) {
+      preAcceptRide = currentRequest;
+    } else if (currentRequest) {
+      preAcceptRide = currentRequest; // fallback
+    }
 
-    // Save passenger name/phone immediately from the pending ride card (always populated by getPendingRides)
-    if (preAcceptRide && preAcceptRide.passenger) {
-      savedPassengerName  = preAcceptRide.passenger.name  || preAcceptRide.passengerName  || '';
-      savedPassengerPhone = preAcceptRide.passenger.phone || preAcceptRide.passengerPhone || '';
-    } else if (preAcceptRide) {
-      savedPassengerName  = preAcceptRide.passengerName  || '';
-      savedPassengerPhone = preAcceptRide.passengerPhone || '';
+    // Pre-save passenger info from pending ride (populated by getPendingRides)
+    if (preAcceptRide && preAcceptRide.passenger && typeof preAcceptRide.passenger === 'object') {
+      savedPassengerName  = preAcceptRide.passenger.name  || '';
+      savedPassengerPhone = preAcceptRide.passenger.phone || '';
     }
 
     fetch(API + '/api/rides/' + rideId + '/accept', { method: 'PUT', headers: authHeaders() })
@@ -1467,13 +1469,16 @@
     .then(function(data) {
       if (data.success) {
         activeRide = data.ride;
-        // Patch in passenger details from the pre-accept ride if /accept didn't populate them
-        if (preAcceptRide && preAcceptRide.passenger && activeRide) {
+        // The /accept response populates passenger — save name/phone from it (most reliable)
+        if (activeRide && activeRide.passenger && typeof activeRide.passenger === 'object') {
+          savedPassengerName  = activeRide.passenger.name  || savedPassengerName  || '';
+          savedPassengerPhone = activeRide.passenger.phone || savedPassengerPhone || '';
+        }
+        // Also patch activeRide for display consistency
+        if (preAcceptRide && preAcceptRide.passenger && typeof preAcceptRide.passenger === 'object') {
           if (!activeRide.passenger || typeof activeRide.passenger === 'string' || !activeRide.passenger.name) {
             activeRide.passenger = preAcceptRide.passenger;
           }
-          if (!activeRide.passengerName) activeRide.passengerName = preAcceptRide.passengerName || (preAcceptRide.passenger && preAcceptRide.passenger.name);
-          if (!activeRide.passengerPhone) activeRide.passengerPhone = preAcceptRide.passengerPhone || (preAcceptRide.passenger && preAcceptRide.passenger.phone);
         }
         currentRequest = null;
         document.getElementById('ride-request-wrap').classList.add('hidden');
@@ -2192,49 +2197,42 @@
 
           if (isPassenger) {
             var freshRide = data.ride || {};
-            // Use savedPassengerName/Phone captured at accept time — most reliable source
-            var pName  = savedPassengerName
-                      || (freshRide.passenger && freshRide.passenger.name)
-                      || (activeRide && activeRide.passenger && activeRide.passenger.name)
-                      || freshRide.passengerName
-                      || (activeRide && activeRide.passengerName)
-                      || 'Passenger';
-            var pPhone = savedPassengerPhone
-                      || (freshRide.passenger && freshRide.passenger.phone)
-                      || (activeRide && activeRide.passenger && activeRide.passenger.phone)
-                      || freshRide.passengerPhone
-                      || (activeRide && activeRide.passengerPhone)
-                      || '—';
-            var pDest  = (freshRide.destination && freshRide.destination.address) || (activeRide && activeRide.destination && activeRide.destination.address) || '—';
-            var pVtype = freshRide.vehicleType || (activeRide && activeRide.vehicleType) || 'car';
 
-            // Show modal immediately with what we have, then re-fetch to get cancelReason
-            function showPaxCancelModal(reason) {
+            // Always re-fetch the ride status to get the fully populated passenger and fresh cancelReason
+            // (poll data may arrive before cancel reason is saved, and passenger may not be populated in poll)
+            function showPaxCancelModalFull(rideData, reasonOverride) {
+              var rd     = rideData || freshRide;
+              var pax    = rd.passenger || {};
+              var pN     = savedPassengerName
+                        || (typeof pax === 'object' && pax.name)
+                        || (activeRide && activeRide.passenger && activeRide.passenger.name)
+                        || 'Passenger';
+              var pPh    = savedPassengerPhone
+                        || (typeof pax === 'object' && pax.phone)
+                        || (activeRide && activeRide.passenger && activeRide.passenger.phone)
+                        || '—';
+              var pDest  = (rd.destination && rd.destination.address) || (activeRide && activeRide.destination && activeRide.destination.address) || '—';
+              var pVtype = rd.vehicleType || (activeRide && activeRide.vehicleType) || 'car';
+              var reason = reasonOverride || rd.cancelReason || cancelReason || 'No reason provided';
               var detailsEl = document.getElementById('pax-cancel-details');
               if (detailsEl) {
                 detailsEl.innerHTML =
-                  '<div><strong>👤 Passenger:</strong> ' + pName + '</div>' +
-                  '<div><strong>📞 Phone:</strong> <a href="tel:' + pPhone + '" style="color:#e74c3c">' + pPhone + '</a></div>' +
+                  '<div><strong>👤 Passenger:</strong> ' + pN + '</div>' +
+                  '<div><strong>📞 Phone:</strong> <a href="tel:' + pPh + '" style="color:#e74c3c">' + pPh + '</a></div>' +
                   '<div><strong>📍 Destination:</strong> ' + pDest + '</div>' +
                   '<div><strong>🚗 Vehicle:</strong> ' + pVtype.charAt(0).toUpperCase() + pVtype.slice(1) + '</div>' +
-                  '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f5c6cb"><strong>❌ Reason:</strong> ' + (reason || 'No reason provided') + '</div>';
+                  '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f5c6cb"><strong>❌ Reason:</strong> ' + reason + '</div>';
               }
               document.getElementById('pax-cancel-modal').classList.add('show');
             }
 
-            // Try to get fresh cancelReason from DB (poll data may have arrived before it was saved)
-            if (cancelReason && cancelReason !== 'No reason provided') {
-              showPaxCancelModal(cancelReason);
-            } else {
-              // Re-fetch once to get the saved reason
-              fetch(API + '/api/rides/' + rideId + '/status', { headers: authHeaders() })
-              .then(function(r) { return r.json(); })
-              .then(function(fresh) {
-                var freshReason = (fresh.ride && fresh.ride.cancelReason) || cancelReason || 'No reason provided';
-                showPaxCancelModal(freshReason);
-              })
-              .catch(function() { showPaxCancelModal(cancelReason); });
-            }
+            // Always re-fetch to get populated passenger + saved cancelReason
+            fetch(API + '/api/rides/' + rideId + '/status', { headers: authHeaders() })
+            .then(function(r) { return r.json(); })
+            .then(function(fresh) {
+              showPaxCancelModalFull(fresh.ride || freshRide);
+            })
+            .catch(function() { showPaxCancelModalFull(freshRide); });
           } else {
             // System or driver-side cancel — just toast
             showToast('🚫 Ride was cancelled' + (cancelReason !== 'No reason provided' ? ': ' + cancelReason : '.'), '#e74c3c');
