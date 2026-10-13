@@ -181,7 +181,7 @@ const getRideStatus = async (req, res) => {
     if (!ride) return res.status(404).json({ message: 'Ride not found.' });
 
     if (ride.status === 'cancelled') {
-      console.log('[getRideStatus] cancelled ride — cancelReason:', ride.cancelReason, '| cancelledBy:', ride.cancelledBy);
+      console.log('[getRideStatus] cancelReason:', ride.cancelReason, '| cancelledBy:', ride.cancelledBy, '| keys:', Object.keys(ride).filter(k => k.includes('cancel')));
     }
 
     res.json({
@@ -221,15 +221,13 @@ const cancelRide = async (req, res) => {
     }
 
     // Use findByIdAndUpdate + $set for atomic write — bypasses Mongoose dirty-tracking
-    const updateDoc = { $set: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: cancelledBy } };
-    if (incomingReason) {
-      updateDoc.$set.cancelReason = incomingReason;
-    }
+    const updateDoc = { $set: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: cancelledBy, cancelReason: incomingReason || 'No reason provided' } };
     const updated = await Ride.findByIdAndUpdate(
       req.params.id,
       updateDoc,
       { new: true }
     );
+    console.log('[cancelRide] updated.cancelReason:', updated && updated.cancelReason, '| updated.cancelledBy:', updated && updated.cancelledBy);
 
     // Free the driver if one was assigned
     if (ride.driver) {
@@ -241,7 +239,7 @@ const cancelRide = async (req, res) => {
       if (io) io.emit('ride:cancelled', { rideId: ride._id, cancelledBy: cancelledBy, cancelReason: incomingReason });
     } catch (_) {}
 
-    res.json({ success: true, message: 'Ride cancelled.' });
+    res.json({ success: true, message: 'Ride cancelled.', cancelReason: incomingReason, cancelledBy: cancelledBy });
   } catch (err) {
     res.status(500).json({ message: 'Server error.' });
   }
