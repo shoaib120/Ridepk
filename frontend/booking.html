@@ -441,6 +441,7 @@
 <!-- Leaflet JS (primary: jsDelivr, fallback: unpkg) -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>if(typeof L==='undefined'){document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');}</script>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
 
 <script>
 
@@ -448,6 +449,17 @@
 //  CONFIGURATION
 // =========================================================
 var API = 'https://ridepk.onrender.com';
+
+// ── Socket.io: cache cancelReason from ride:cancelled event ──
+var cachedCancelReasons = {}; // rideId -> reason
+try {
+  var _socket = io(API, { transports: ['websocket'], reconnection: false });
+  _socket.on('ride:cancelled', function(data) {
+    if (data && data.rideId && data.cancelReason) {
+      cachedCancelReasons[String(data.rideId)] = data.cancelReason;
+    }
+  });
+} catch(e) {}
 
 var PRICING = {
   motorbike: { minFare: 60,  perKm: 35, label: 'Rs 35/km' },
@@ -1947,7 +1959,7 @@ function startPollingRideStatus() {
           clearInterval(pollInterval);
           clearTimeout(rideSearchTimeout);
           var cancelledBy2  = data.ride.cancelledBy  || 'unknown';
-          var _cr2 = data.ride.cancelReason;
+          var _cr2 = cachedCancelReasons[String(currentRideId)] || data.ride.cancelReason;
           var cancelReason2 = (_cr2 && _cr2 !== 'null' && _cr2 !== 'undefined') ? _cr2 : 'No reason provided';
           if (cancelledBy2 === 'driver' && data.ride.driver) {
             var drv2      = data.ride.driver;
@@ -2076,7 +2088,7 @@ function startActiveRidePolling() {
           clearInterval(activeRidePollInterval);
           stopChatPolling();
           var cancelledBy  = (data.ride && data.ride.cancelledBy)  || 'unknown';
-          var _cr = data.ride && data.ride.cancelReason;
+          var _cr = cachedCancelReasons[String(currentRideId || (data.ride && data.ride._id))] || (data.ride && data.ride.cancelReason);
           var cancelReason = (_cr && _cr !== 'null' && _cr !== 'undefined') ? _cr : 'No reason provided';
 
           if (cancelledBy === 'driver' && data.ride && data.ride.driver) {
