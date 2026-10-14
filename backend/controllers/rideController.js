@@ -180,8 +180,17 @@ const getRideStatus = async (req, res) => {
 
     if (!ride) return res.status(404).json({ message: 'Ride not found.' });
 
-    if (ride.status === 'cancelled') {
-      console.log('[getRideStatus] cancelReason:', ride.cancelReason, '| cancelledBy:', ride.cancelledBy, '| keys:', Object.keys(ride).filter(k => k.includes('cancel')));
+    // If cancelReason is missing from the lean doc, fetch it raw from the collection
+    if (ride.status === 'cancelled' && !ride.cancelReason) {
+      try {
+        const raw = await Ride.collection.findOne(
+          { _id: ride._id },
+          { projection: { cancelReason: 1, cancelledBy: 1 } }
+        );
+        if (raw && raw.cancelReason) ride.cancelReason = raw.cancelReason;
+        if (raw && raw.cancelledBy && !ride.cancelledBy) ride.cancelledBy = raw.cancelledBy;
+        console.log('[getRideStatus] raw cancelReason:', raw && raw.cancelReason);
+      } catch (e) {}
     }
 
     res.json({
