@@ -684,7 +684,8 @@
     });
     // When a passenger books, trigger an immediate poll so the driver sees it right away
     // (without waiting up to 5 seconds for the next scheduled poll tick)
-    _socket.on('ride:new', function() {
+    _socket.on('ride:new', function(data) {
+      console.log('[socket] ride:new received', data);
       if (typeof _doPollRides === 'function' && !activeRide) {
         _doPollRides();
       }
@@ -1239,16 +1240,18 @@
   var displayedRideIds = {};
 
   function _doPollRides() {
-      if (!driverData || !driverData.isOnline) return;
-      if (activeRide) return;
+      if (!driverData || !driverData.isOnline) { console.log('[poll] skip – offline or no driverData'); return; }
+      if (activeRide) { console.log('[poll] skip – activeRide set'); return; }
 
       fetch(API + '/api/rides/pending', { headers: authHeaders() })
       .then(function(r) {
         if (!r.ok && r.status === 401) { stopRidePolling(); return null; }
+        if (!r.ok) { console.warn('[poll] HTTP ' + r.status); }
         return r.json();
       })
       .then(function(data) {
-        if (!data || !data.success) return;
+        if (!data || !data.success) { console.warn('[poll] bad data', data); return; }
+        console.log('[poll] rides found:', (data.rides || []).length);
 
         var now = Date.now();
 
@@ -1313,6 +1316,7 @@
   }
 
   function startRidePolling() {
+    console.log('[startRidePolling] called');
     stopRidePolling();
     _doPollRides(); // immediate first check — no 5s wait
     pollInterval = setInterval(_doPollRides, 5000);
@@ -2000,6 +2004,7 @@
   }
 
   function resetActiveRide() {
+    console.log('[resetActiveRide] called');
     activeRide = null;
     savedPassengerName  = '';
     savedPassengerPhone = '';
@@ -2268,8 +2273,10 @@
           }
 
           // Clear the active ride immediately
+          console.log('[activeRidePoll] cancelled detected – resetting');
           stopActiveRidePoll();
           activeRide = null;
+          displayedRideIds = {};
           var wrap = document.getElementById('active-ride-wrap');
           if (wrap) { wrap.classList.add('hidden'); wrap.innerHTML = ''; }
           if (navMap) { navMap.remove(); navMap = null; }
