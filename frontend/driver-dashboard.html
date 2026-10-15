@@ -1611,16 +1611,21 @@
     return null;
   }
 
+  var _initMapPending = false; // guard against double-init races
   function initNavMap(ride) {
+    console.log('[initNavMap] called, pCoords test incoming');
     if (navMap) { navMap.remove(); navMap = null; }
+    _initMapPending = false; // reset so this call can schedule _initMap
     navDestMarker = null;
     driverPhase = 'to_pickup';
 
     var pCoords = getCoords(ride.pickup);
     var dCoords = getCoords(ride.destination);
+    console.log('[initNavMap] pCoords:', JSON.stringify(pCoords), 'dCoords:', JSON.stringify(dCoords));
 
     // If pickup OR destination coords are missing, re-fetch from the status endpoint
     if ((!pCoords || !dCoords) && activeRide && activeRide._id) {
+      console.log('[initNavMap] coords missing — re-fetching ride', activeRide._id);
       fetch(API + '/api/rides/' + activeRide._id + '/status', { headers: authHeaders() })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -1715,7 +1720,10 @@
       pickupToDestLayer = null;
       drawPickupToDestRoute(ride);
     };
-    requestAnimationFrame(function() { setTimeout(_initMap, 150); });
+    if (!_initMapPending) {
+      _initMapPending = true;
+      requestAnimationFrame(function() { setTimeout(function() { _initMapPending = false; _initMap(); }, 150); });
+    }
 
     // Get real GPS — two-pass strategy
     // Pass 1: allow cached fix (maximumAge:5000) — fast on Pakistani mobile, bounding box rejects Gilgit
