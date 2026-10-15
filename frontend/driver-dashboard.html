@@ -1624,6 +1624,7 @@
       fetch(API + '/api/rides/' + activeRide._id + '/status', { headers: authHeaders() })
         .then(function(r) { return r.json(); })
         .then(function(data) {
+          if (!activeRide) return; // ride was cancelled/completed while fetch was in-flight — do not restore
           if (data.success && data.ride) {
             activeRide = data.ride;
             initNavMap(data.ride); // retry with fresh data
