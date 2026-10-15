@@ -1559,7 +1559,7 @@
             '<span style="font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Agreed Fare</span>' +
             '<div style="font-size:1.2rem;font-weight:800;color:var(--green);margin-top:2px">' + fareLabel + '</div>' +
           '</div>' +
-          '<div id="nav-map"></div>' +
+          '<div id="nav-map" style="height:320px;min-height:320px;width:100%"></div>' +
           '<div id="nav-eta-bar" style="background:#fff8f0;border-radius:10px;padding:12px 16px;margin-bottom:8px;font-size:0.9rem;color:var(--orange);font-weight:600">⏳ Getting GPS...</div>' +
           '<div style="background:#f0f8ff;border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:0.8rem;color:#555">🔵 You &nbsp;|&nbsp; 🔴 Pickup &nbsp;|&nbsp; 🟢 Destination &nbsp;|&nbsp; 🟠 Route</div>' +
           '<button class="btn-complete" onclick="completeRide(\'' + ride._id + '\')">✅ Mark Ride as Completed</button>' +
@@ -1582,7 +1582,7 @@
     wrap.classList.remove('hidden');
     updatePollStatus();
 
-    setTimeout(function() { initNavMap(ride); }, 500);
+    setTimeout(function() { initNavMap(ride); }, 800);
 
     lastMessageAt = null;
     seenMsgIds = {};
@@ -1658,11 +1658,14 @@
       attribution: '© OpenStreetMap contributors', maxZoom: 19
     }).addTo(navMap);
     // Force Leaflet to recalculate container size — fixes blank map when div is freshly injected
-    // Multiple attempts: first one triggers layout, second ensures tiles filled in
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 100);
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 500);
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 1200);
-    tileLayer.once('load', function() { if (navMap) navMap.invalidateSize(true); });
+    // The nav-map div starts inside a hidden container; even after unhiding, the browser may not
+    // have painted the real dimensions yet, so we invalidate repeatedly at increasing intervals.
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 50);
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 200);
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 600);
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 1500);
+    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 3000);
+    tileLayer.on('load', function() { if (navMap) navMap.invalidateSize(true); });
 
     // Pickup marker (red)
     var pickupIcon = L.divIcon({
