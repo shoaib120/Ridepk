@@ -1995,7 +1995,7 @@
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success) {
-        showToast('✅ Ride completed! Earnings: Rs ' + (data.finalPrice || 0), '#27ae60');
+        showToast('✅ Ride completed! Earnings: Rs ' + (data.ride && (data.ride.finalPrice || data.ride.offeredPrice) || 0), '#27ae60');
         loadEarnings();
       } else {
         showToast('❌ ' + (data.message || 'Could not complete ride.'), '#e74c3c');
