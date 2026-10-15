@@ -1663,10 +1663,21 @@
       el.style.height = '320px';
       el.style.minHeight = '320px';
       void el.offsetHeight; // reading offsetHeight triggers synchronous reflow
-      navMap = L.map('nav-map', { zoomControl: true }).setView([centerLat, centerLng], 12);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors', maxZoom: 19
+      navMap = L.map('nav-map', { zoomControl: true, preferCanvas: true }).setView([centerLat, centerLng], 13);
+      // Primary: tile.openstreetmap.org (no subdomain rotation — avoids DNS/CORS issues)
+      var _tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors', maxZoom: 19, crossOrigin: true
       }).addTo(navMap);
+      // Fallback: if primary tiles fail, switch to CartoDB light (no key needed)
+      var _tileFailed = false;
+      _tiles.on('tileerror', function() {
+        if (_tileFailed) return;
+        _tileFailed = true;
+        navMap.removeLayer(_tiles);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          attribution: '© OpenStreetMap © CARTO', maxZoom: 19, subdomains: 'abcd'
+        }).addTo(navMap);
+      });
       navMap.invalidateSize(true);
       setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 300);
       setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 1000);
