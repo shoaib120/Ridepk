@@ -1973,6 +1973,8 @@
   function completeRide(rideId) {
     if (!confirm('Mark this ride as completed?')) return;
     var finalFare = activeRide ? (activeRide.finalPrice || activeRide.offeredFare || activeRide.estimatedFare || 0) : 0;
+    // Clear activeRide immediately so driver can receive new requests right away
+    resetActiveRide();
     fetch(API + '/api/rides/' + rideId + '/complete', {
       method:  'PUT',
       headers: authHeaders(),
@@ -1982,7 +1984,6 @@
     .then(function(data) {
       if (data.success) {
         showToast('✅ Ride completed! Earnings: Rs ' + (data.finalPrice || 0), '#27ae60');
-        resetActiveRide();
         loadEarnings();
       } else {
         showToast('❌ ' + (data.message || 'Could not complete ride.'), '#e74c3c');
@@ -2065,6 +2066,9 @@
   function doCancelRide(reason) {
     if (!activeRide) return;
     var rideId = activeRide._id;
+    // Clear activeRide immediately so driver can receive new requests
+    // regardless of whether the API call succeeds
+    resetActiveRide();
     fetch(API + '/api/rides/' + rideId + '/cancel', {
       method:  'PUT',
       headers: authHeaders(),
@@ -2074,7 +2078,6 @@
     .then(function(data) {
       if (data.success) {
         showToast('🚫 Ride cancelled: ' + reason, '#e74c3c');
-        resetActiveRide();
       } else {
         showToast('❌ ' + (data.message || 'Could not cancel.'), '#e74c3c');
       }
