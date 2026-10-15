@@ -1612,45 +1612,43 @@
   }
 
   var _initMapPending = false; // guard against double-init races
+  var _initMapCoordsRetried = false; // allow only ONE re-fetch attempt, then proceed without coords
   function initNavMap(ride) {
-    console.log('[initNavMap] called, pCoords test incoming');
     if (navMap) { navMap.remove(); navMap = null; }
-    _initMapPending = false; // reset so this call can schedule _initMap
+    _initMapPending = false;
     navDestMarker = null;
     driverPhase = 'to_pickup';
 
     var pCoords = getCoords(ride.pickup);
     var dCoords = getCoords(ride.destination);
-    console.log('[initNavMap] pCoords:', JSON.stringify(pCoords), 'dCoords:', JSON.stringify(dCoords));
 
-    // If pickup OR destination coords are missing, re-fetch from the status endpoint
-    if ((!pCoords || !dCoords) && activeRide && activeRide._id) {
-      console.log('[initNavMap] coords missing — re-fetching ride', activeRide._id);
+    // If coords are missing and we have NOT already retried, do ONE re-fetch attempt.
+    // After that, proceed without coords (use Lahore as default center).
+    if ((!pCoords || !dCoords) && !_initMapCoordsRetried && activeRide && activeRide._id) {
+      _initMapCoordsRetried = true;
       fetch(API + '/api/rides/' + activeRide._id + '/status', { headers: authHeaders() })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!activeRide) return; // ride was cancelled/completed while fetch was in-flight — do not restore
-          if (data.success && data.ride) {
-            activeRide = data.ride;
-            initNavMap(data.ride); // retry with fresh data
-          } else {
-            showToast('⚠️ Could not load ride coordinates.', '#e74c3c');
-          }
+          if (!activeRide) return;
+          var freshRide = (data.success && data.ride) ? data.ride : ride;
+          activeRide = freshRide;
+          initNavMap(freshRide);
         })
-        .catch(function() { showToast('⚠️ Pickup coordinates missing.', '#e74c3c'); });
+        .catch(function() { initNavMap(ride); }); // on error, proceed with what we have
       return;
     }
-    if (!pCoords) { showToast('⚠️ Pickup coordinates missing.', '#e74c3c'); return; }
+    // Reset retry flag for the next ride acceptance
+    _initMapCoordsRetried = false;
 
-    var pickupLat = pCoords.lat;
-    var pickupLng = pCoords.lng;
+    // Default center: Lahore, Pakistan — used when ride has no stored coordinates
+    var LAHORE_LAT = 31.5204, LAHORE_LNG = 74.3587;
 
-    // Attach flat coords to ride so drawPickupToDestRoute / addDriverMarkerAndRoute can use them
-    ride.pickup.lat      = pickupLat;
-    ride.pickup.lng      = pickupLng;
+    var pickupLat = pCoords ? pCoords.lat : LAHORE_LAT;
+    var pickupLng = pCoords ? pCoords.lng : LAHORE_LNG;
+
+    if (pCoords) { ride.pickup.lat = pickupLat; ride.pickup.lng = pickupLng; }
     if (dCoords) { ride.destination.lat = dCoords.lat; ride.destination.lng = dCoords.lng; }
 
-    // Center map between pickup and destination for a better overview
     var centerLat = pickupLat;
     var centerLng = pickupLng;
     if (dCoords) {
@@ -1658,26 +1656,17 @@
       centerLng = (pickupLng + dCoords.lng) / 2;
     }
 
-    // Wait for browser to fully paint the injected #nav-map div before Leaflet measures it.
-    // requestAnimationFrame alone is not enough — we need at least one full layout cycle.
     var _initMap = function() {
-      console.log('[initNavMap] _initMap fired');
       if (navMap) { navMap.remove(); navMap = null; }
       var el = document.getElementById('nav-map');
-      if (!el) { console.warn('[initNavMap] #nav-map not found — retrying in 500ms'); setTimeout(_initMap, 500); return; }
-      console.log('[initNavMap] el found, size:', el.offsetWidth, 'x', el.offsetHeight);
-      // Force a reflow so the browser commits the height before Leaflet measures it
+      if (!el) { setTimeout(_initMap, 500); return; }
       el.style.height = '320px';
       el.style.minHeight = '320px';
-      void el.offsetHeight; // reading offsetHeight triggers synchronous reflow
-      console.log('[initNavMap] after reflow:', el.offsetWidth, 'x', el.offsetHeight, 'center:', centerLat, centerLng);
+      void el.offsetHeight;
       navMap = L.map('nav-map', { zoomControl: true, preferCanvas: true }).setView([centerLat, centerLng], 13);
-      console.log('[initNavMap] navMap created');
-      // Primary: tile.openstreetmap.org (no subdomain rotation — avoids DNS/CORS issues)
       var _tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors', maxZoom: 19, crossOrigin: true
       }).addTo(navMap);
-      // Fallback: if primary tiles fail, switch to CartoDB light (no key needed)
       var _tileFailed = false;
       _tiles.on('tileerror', function() {
         if (_tileFailed) return;
@@ -1691,18 +1680,19 @@
       setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 300);
       setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 1000);
 
-      // Pickup marker (red)
-      var pickupIcon = L.divIcon({
-        className: '',
-        html: '<div style="background:#e74c3c;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
-        iconSize: [16, 16], iconAnchor: [8, 8]
-      });
-      navPickupMarker = L.marker([pickupLat, pickupLng], { icon: pickupIcon })
-        .addTo(navMap)
-        .bindPopup('🔴 <strong>Passenger Pickup</strong><br/>' + ride.pickup.address)
-        .openPopup();
+      // Only add markers if we have real coordinates
+      if (pCoords) {
+        var pickupIcon = L.divIcon({
+          className: '',
+          html: '<div style="background:#e74c3c;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+          iconSize: [16, 16], iconAnchor: [8, 8]
+        });
+        navPickupMarker = L.marker([pickupLat, pickupLng], { icon: pickupIcon })
+          .addTo(navMap)
+          .bindPopup('🔴 <strong>Passenger Pickup</strong><br/>' + (ride.pickup.address || ''))
+          .openPopup();
+      }
 
-      // Destination marker (green)
       if (dCoords) {
         var destIcon = L.divIcon({
           className: '',
@@ -1712,13 +1702,14 @@
         navDestMarker = L.marker([dCoords.lat, dCoords.lng], { icon: destIcon })
           .addTo(navMap)
           .bindPopup('🟢 <strong>Destination</strong><br/>' + (ride.destination.address || ''));
-        var bounds = L.latLngBounds([pickupLat, pickupLng], [dCoords.lat, dCoords.lng]);
-        navMap.fitBounds(bounds, { padding: [40, 40] });
+        if (pCoords) {
+          var bounds = L.latLngBounds([pickupLat, pickupLng], [dCoords.lat, dCoords.lng]);
+          navMap.fitBounds(bounds, { padding: [40, 40] });
+        }
       }
 
-      // Draw orange route line (pickup→destination)
       pickupToDestLayer = null;
-      drawPickupToDestRoute(ride);
+      if (pCoords) drawPickupToDestRoute(ride);
     };
     if (!_initMapPending) {
       _initMapPending = true;
