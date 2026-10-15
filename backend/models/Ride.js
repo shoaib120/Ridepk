@@ -80,8 +80,9 @@ const rideSchema = new mongoose.Schema({
   acceptedAt:  { type: Date, default: null },
   startedAt:   { type: Date, default: null },
   completedAt: { type: Date, default: null },
-  cancelledAt: { type: Date, default: null },
-  cancelledBy: { type: String, default: null },
+  cancelledAt:  { type: Date,   default: null },
+  cancelledBy:  { type: String, default: null },
+  cancelReason: { type: String, default: null },
 
   passengerRating: { type: Number, min: 1, max: 5, default: null },
   driverRating:    { type: Number, min: 1, max: 5, default: null },
