@@ -1598,12 +1598,15 @@
     // Direct flat coords
     if (loc.lat !== undefined && loc.lng !== undefined) return { lat: Number(loc.lat), lng: Number(loc.lng) };
     if (loc.latitude !== undefined && loc.longitude !== undefined) return { lat: Number(loc.latitude), lng: Number(loc.longitude) };
+    // MongoDB schema: pickup.coordinates = { lat, lng }  (object, not array)
+    if (loc.coordinates && !Array.isArray(loc.coordinates) &&
+        loc.coordinates.lat !== undefined && loc.coordinates.lng !== undefined) {
+      return { lat: Number(loc.coordinates.lat), lng: Number(loc.coordinates.lng) };
+    }
     // GeoJSON array  [lng, lat]
     if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
-      // Sanity: coordinates[1] should be lat (23-36), coordinates[0] should be lng (60-80)
       var lng0 = Number(loc.coordinates[0]), lat1 = Number(loc.coordinates[1]);
       if (lat1 >= 23 && lat1 <= 36 && lng0 >= 60 && lng0 <= 80) return { lat: lat1, lng: lng0 };
-      // Might be stored as [lat, lng] — check
       if (lng0 >= 23 && lng0 <= 36 && lat1 >= 60 && lat1 <= 80) return { lat: lng0, lng: lat1 };
     }
     // Nested .location object
