@@ -1653,51 +1653,54 @@
       centerLng = (pickupLng + dCoords.lng) / 2;
     }
 
-    navMap = L.map('nav-map', { zoomControl: true }).setView([centerLat, centerLng], 12);
-    var tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors', maxZoom: 19
-    }).addTo(navMap);
-    // Force Leaflet to recalculate container size — fixes blank map when div is freshly injected
-    // The nav-map div starts inside a hidden container; even after unhiding, the browser may not
-    // have painted the real dimensions yet, so we invalidate repeatedly at increasing intervals.
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 50);
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 200);
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 600);
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 1500);
-    setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 3000);
-    tileLayer.on('load', function() { if (navMap) navMap.invalidateSize(true); });
+    // Wait for browser to fully paint the injected #nav-map div before Leaflet measures it.
+    // requestAnimationFrame alone is not enough — we need at least one full layout cycle.
+    var _initMap = function() {
+      if (navMap) { navMap.remove(); navMap = null; }
+      var el = document.getElementById('nav-map');
+      if (!el) return;
+      // Force a reflow so the browser commits the height before Leaflet measures it
+      el.style.height = '320px';
+      el.style.minHeight = '320px';
+      void el.offsetHeight; // reading offsetHeight triggers synchronous reflow
+      navMap = L.map('nav-map', { zoomControl: true }).setView([centerLat, centerLng], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors', maxZoom: 19
+      }).addTo(navMap);
+      navMap.invalidateSize(true);
+      setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 300);
+      setTimeout(function() { if (navMap) navMap.invalidateSize(true); }, 1000);
 
-    // Pickup marker (red)
-    var pickupIcon = L.divIcon({
-      className: '',
-      html: '<div style="background:#e74c3c;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
-      iconSize: [16, 16], iconAnchor: [8, 8]
-    });
-    navPickupMarker = L.marker([pickupLat, pickupLng], { icon: pickupIcon })
-      .addTo(navMap)
-      .bindPopup('🔴 <strong>Passenger Pickup</strong><br/>' + ride.pickup.address)
-      .openPopup();
-
-    // Destination marker (green) — show immediately on map init
-    if (dCoords) {
-      var destIcon = L.divIcon({
+      // Pickup marker (red)
+      var pickupIcon = L.divIcon({
         className: '',
-        html: '<div style="background:#27ae60;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+        html: '<div style="background:#e74c3c;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
         iconSize: [16, 16], iconAnchor: [8, 8]
       });
-      navDestMarker = L.marker([dCoords.lat, dCoords.lng], { icon: destIcon })
+      navPickupMarker = L.marker([pickupLat, pickupLng], { icon: pickupIcon })
         .addTo(navMap)
-        .bindPopup('🟢 <strong>Destination</strong><br/>' + (ride.destination.address || ''));
+        .bindPopup('🔴 <strong>Passenger Pickup</strong><br/>' + ride.pickup.address)
+        .openPopup();
 
-      // Fit both markers in view
-      var bounds = L.latLngBounds([pickupLat, pickupLng], [dCoords.lat, dCoords.lng]);
-      navMap.fitBounds(bounds, { padding: [40, 40] });
-    }
+      // Destination marker (green)
+      if (dCoords) {
+        var destIcon = L.divIcon({
+          className: '',
+          html: '<div style="background:#27ae60;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+          iconSize: [16, 16], iconAnchor: [8, 8]
+        });
+        navDestMarker = L.marker([dCoords.lat, dCoords.lng], { icon: destIcon })
+          .addTo(navMap)
+          .bindPopup('🟢 <strong>Destination</strong><br/>' + (ride.destination.address || ''));
+        var bounds = L.latLngBounds([pickupLat, pickupLng], [dCoords.lat, dCoords.lng]);
+        navMap.fitBounds(bounds, { padding: [40, 40] });
+      }
 
-    // ── Draw orange route line immediately (pickup→destination) ──────────────
-    // No GPS needed — we know both endpoints from the ride object.
-    pickupToDestLayer = null; // reset for new ride
-    drawPickupToDestRoute(ride);
+      // Draw orange route line (pickup→destination)
+      pickupToDestLayer = null;
+      drawPickupToDestRoute(ride);
+    };
+    requestAnimationFrame(function() { setTimeout(_initMap, 150); });
 
     // Get real GPS — two-pass strategy
     // Pass 1: allow cached fix (maximumAge:5000) — fast on Pakistani mobile, bounding box rejects Gilgit
