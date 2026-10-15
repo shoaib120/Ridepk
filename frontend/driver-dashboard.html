@@ -673,13 +673,20 @@
 
 <script>
   var API         = 'https://ridepk.onrender.com';
-  // ── Socket.io: cache cancelReason from ride:cancelled event ──
+  // ── Socket.io: real-time ride events ──
   var cachedCancelReasons = {}; // rideId -> reason
   try {
-    var _socket = io(API, { transports: ['websocket'], reconnection: false });
+    var _socket = io(API, { transports: ['websocket', 'polling'], reconnection: true, reconnectionDelay: 2000, reconnectionAttempts: 10 });
     _socket.on('ride:cancelled', function(data) {
       if (data && data.rideId && data.cancelReason) {
         cachedCancelReasons[String(data.rideId)] = data.cancelReason;
+      }
+    });
+    // When a passenger books, trigger an immediate poll so the driver sees it right away
+    // (without waiting up to 5 seconds for the next scheduled poll tick)
+    _socket.on('ride:new', function() {
+      if (typeof _doPollRides === 'function' && !activeRide) {
+        _doPollRides();
       }
     });
   } catch(e) {}
