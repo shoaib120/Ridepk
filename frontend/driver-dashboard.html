@@ -2268,6 +2268,7 @@
 
         } else if (status === 'completed') {
           stopActiveRidePoll();
+          resetActiveRide();
         }
       })
       .catch(function() {});
