@@ -1656,14 +1656,18 @@
     // Wait for browser to fully paint the injected #nav-map div before Leaflet measures it.
     // requestAnimationFrame alone is not enough — we need at least one full layout cycle.
     var _initMap = function() {
+      console.log('[initNavMap] _initMap fired');
       if (navMap) { navMap.remove(); navMap = null; }
       var el = document.getElementById('nav-map');
-      if (!el) return;
+      if (!el) { console.warn('[initNavMap] #nav-map not found — retrying in 500ms'); setTimeout(_initMap, 500); return; }
+      console.log('[initNavMap] el found, size:', el.offsetWidth, 'x', el.offsetHeight);
       // Force a reflow so the browser commits the height before Leaflet measures it
       el.style.height = '320px';
       el.style.minHeight = '320px';
       void el.offsetHeight; // reading offsetHeight triggers synchronous reflow
+      console.log('[initNavMap] after reflow:', el.offsetWidth, 'x', el.offsetHeight, 'center:', centerLat, centerLng);
       navMap = L.map('nav-map', { zoomControl: true, preferCanvas: true }).setView([centerLat, centerLng], 13);
+      console.log('[initNavMap] navMap created');
       // Primary: tile.openstreetmap.org (no subdomain rotation — avoids DNS/CORS issues)
       var _tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors', maxZoom: 19, crossOrigin: true
