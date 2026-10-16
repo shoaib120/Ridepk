@@ -7,9 +7,11 @@ const nodemailer = require('nodemailer');
 
 function getTransporter() {
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: false,
     auth: {
-      user: process.env.EMAIL_USER,
+      user: process.env.SMTP_USER || process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS
     }
   });
