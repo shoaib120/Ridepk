@@ -68,8 +68,8 @@ const registerPassenger = async (req, res) => {
 
     const user = await User.create({ name, phone, email, password });
 
-    sendPassengerWelcomeEmail(user).catch(() => {});
-    sendAdminPassengerNotification(user).catch(() => {});
+  sendPassengerWelcomeEmail(user).catch(err => console.error('❌ sendPassengerWelcomeEmail threw:', err.message));
+sendAdminPassengerNotification(user).catch(err => console.error('❌ sendAdminPassengerNotification threw:', err.message));
 
     res.status(201).json({
       success: true,
