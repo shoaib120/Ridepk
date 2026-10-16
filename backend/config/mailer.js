@@ -278,6 +278,7 @@ async function sendPassengerWelcomeEmail(user) {
 //  7. ADMIN — NEW PASSENGER NOTIFICATION
 // ─────────────────────────────────────────────────────────
 async function sendAdminPassengerNotification(user) {
+  console.log('📧 sendAdminPassengerNotification called, ADMIN_EMAIL:', ADMIN_EMAIL ? 'SET' : 'EMPTY');
   if (!ADMIN_EMAIL) return;
   try {
     const transporter = getTransporter();
