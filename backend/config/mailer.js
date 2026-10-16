@@ -18,7 +18,7 @@ function getTransporter() {
 }
 
 // Trim trailing slash so links never have double slashes
-const BASE = (process.env.FRONTEND_URL || 'http://127.0.0.1:5500').replace(/\/$/, '');
+const BASE = (process.env.FRONTEND_URL || 'https://ridepk-frontend.vercel.app').replace(/\/$/, '');
 const LOGIN_URL        = BASE + '/frontend/login.html';
 const DRIVER_LOGIN_URL = BASE + '/frontend/driver-login.html';
 const ADMIN_URL        = BASE + '/frontend/admin-login.html';
