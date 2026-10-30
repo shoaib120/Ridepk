@@ -1,30 +1,70 @@
 // =====================================================
 //  backend/config/rideMailer.js
-//  Ride-event transactional emails for RidePK
-//  (registration / subscription emails are in mailer.js)
+//  Ride-related transactional emails for RidePK
+//  Uses Brevo HTTP API (bypasses SMTP firewall on Render)
 // =====================================================
 
-const nodemailer = require('nodemailer');
+const https = require('https');
 
-function getTransporter() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER || process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+// ── Send via Brevo HTTP API ─────────────────────────
+function sendBrevoEmail({ to, toName, subject, html, text }) {
+  return new Promise((resolve, reject) => {
+    const fromEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER;
+    const fromName  = 'RidePK';
+    const apiKey    = process.env.BREVO_API_KEY;
+
+    if (!apiKey) {
+      return reject(new Error('BREVO_API_KEY not set'));
     }
+
+    const body = JSON.stringify({
+      sender:      { name: fromName, email: fromEmail },
+      to:          [{ email: to, name: toName || to }],
+      subject,
+      htmlContent: html,
+      textContent: text || ''
+    });
+
+    const options = {
+      hostname: 'api.brevo.com',
+      path:     '/v3/smtp/email',
+      method:   'POST',
+      headers: {
+        'accept':         'application/json',
+        'api-key':        apiKey,
+        'content-type':   'application/json',
+        'content-length': Buffer.byteLength(body)
+      }
+    };
+
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(data);
+        } else {
+          reject(new Error(`Brevo API error ${res.statusCode}: ${data}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(body);
+    req.end();
   });
 }
 
-const BASE = (process.env.FRONTEND_URL || 'https://ridepk-frontend.vercel.app').replace(/\/$/, '');
-const LOGIN_URL        = BASE + '/frontend/login.html';
-const DRIVER_LOGIN_URL = BASE + '/frontend/driver-login.html';
+const BASE          = (process.env.FRONTEND_URL || 'https://ridepk-frontend.vercel.app').replace(/\/$/, '');
+const LOGIN_URL     = BASE + '/frontend/login.html';
+const DRIVER_URL    = BASE + '/frontend/driver-login.html';
+const ADMIN_EMAIL   = process.env.ADMIN_EMAIL || '';
 
+// ── Brand colours ──────────────────────────────────────
 const ORANGE = '#ff6b00';
 const DARK   = '#1a1a2e';
 
+// ── Shared HTML wrapper ─────────────────────────────────
 function wrap(title, body) {
   return `
 <!DOCTYPE html>
@@ -53,49 +93,49 @@ function wrap(title, body) {
 function btn(url, label) {
   return `<a href="${url}" style="display:inline-block;background:${ORANGE};color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;font-weight:700;font-size:0.92rem;margin:14px 0">${label}</a>`;
 }
-function h1(text) { return `<h2 style="margin:0 0 10px;color:#1a1a2e;font-size:1.15rem">${text}</h2>`; }
-function p(text)  { return `<p  style="margin:0 0 12px;color:#444;font-size:0.9rem;line-height:1.6">${text}</p>`; }
-function row(label, value) {
-  return `<tr><td style="color:#666;font-size:0.82rem;padding:3px 0">${label}</td><td style="font-weight:600;font-size:0.85rem">${value}</td></tr>`;
-}
-function table(rows) {
-  return `<table style="background:#f8f8fc;border-radius:8px;padding:14px 18px;margin:12px 0 18px;width:100%;border-collapse:collapse">${rows}</table>`;
+function h1(text)  { return `<h2 style="margin:0 0 10px;color:#1a1a2e;font-size:1.15rem">${text}</h2>`; }
+function p(text)   { return `<p  style="margin:0 0 12px;color:#444;font-size:0.9rem;line-height:1.6">${text}</p>`; }
+
+function rideTable(ride) {
+  const p = ride.passenger || {};
+  const d = ride.driver    || {};
+  return `
+  <table style="background:#f8f8fc;border-radius:8px;padding:14px 18px;margin:12px 0 18px;width:100%;border-collapse:collapse">
+    <tr><td style="color:#666;font-size:0.82rem;padding:3px 0">Pickup</td>      <td style="font-weight:600;font-size:0.85rem">${ride.pickup        || '—'}</td></tr>
+    <tr><td style="color:#666;font-size:0.82rem;padding:3px 0">Destination</td> <td style="font-weight:600;font-size:0.85rem">${ride.destination   || '—'}</td></tr>
+    <tr><td style="color:#666;font-size:0.82rem;padding:3px 0">Ride Type</td>   <td style="font-weight:600;font-size:0.85rem">${ride.rideType      || '—'}</td></tr>
+    <tr><td style="color:#666;font-size:0.82rem;padding:3px 0">Price</td>       <td style="font-weight:600;font-size:0.85rem">Rs. ${ride.offeredPrice || '—'}</td></tr>
+    <tr><td style="color:#666;font-size:0.82rem;padding:3px 0">Payment</td>     <td style="font-weight:600;font-size:0.85rem">${ride.paymentMethod  || '—'}</td></tr>
+    ${p.name ? `<tr><td style="color:#666;font-size:0.82rem;padding:3px 0">Passenger</td><td style="font-weight:600;font-size:0.85rem">${p.name} · ${p.phone || ''}</td></tr>` : ''}
+    ${d.fullName ? `<tr><td style="color:#666;font-size:0.82rem;padding:3px 0">Driver</td><td style="font-weight:600;font-size:0.85rem">${d.fullName} · ${d.phone || ''}</td></tr>` : ''}
+  </table>`;
 }
 
 // ─────────────────────────────────────────────────────────
-//  1. RIDE ACCEPTED — email to passenger
+//  1. RIDE ACCEPTED — passenger notification
 // ─────────────────────────────────────────────────────────
-async function sendRideAcceptedEmail(passenger, driver, ride) {
-  if (!passenger || !passenger.email) return;
+async function sendRideAcceptedEmail(ride) {
+  const passenger = ride.passenger || {};
+  if (!passenger.email) return;
   try {
-    const transporter = getTransporter();
-    const fare = ride.finalPrice || ride.counterOffer || ride.offeredPrice || 0;
-    const vehicle = driver.vehicle
-      ? `${driver.vehicle.make || ''} ${driver.vehicle.model || ''} (${driver.vehicle.plate || 'N/A'})`.trim()
-      : 'N/A';
+    const driver = ride.driver || {};
     const subject = `RidePK — Your ride has been accepted!`;
     const html = wrap(subject, `
-      ${h1('🚗 Driver On the Way!')}
-      ${p(`Hi <strong>${passenger.name}</strong>, your ride request has been accepted. Your driver is heading to your pickup location.`)}
-      ${table(
-        row('Driver',      driver.fullName || 'N/A') +
-        row('Phone',       driver.phone    || 'N/A') +
-        row('Vehicle',     vehicle) +
-        row('Pickup',      ride.pickup    && (ride.pickup.address    || '') || 'N/A') +
-        row('Destination', ride.destination && (ride.destination.address || '') || 'N/A') +
-        row('Agreed Fare', `Rs. ${fare}`)
-      )}
-      ${p('Please be ready at your pickup location. You can track the driver on the RidePK app.')}
-      ${btn(LOGIN_URL, '📍 Open RidePK App')}
+      ${h1('🟢 Ride Accepted!')}
+      ${p(`Hi <strong>${passenger.name || 'Passenger'}</strong>, a driver has accepted your ride request.`)}
+      ${rideTable(ride)}
+      <div style="background:#f0fff4;border:1px solid #22c55e44;border-radius:8px;padding:14px 18px;margin:12px 0 16px">
+        <p style="margin:0;color:#166534;font-size:0.88rem;font-weight:600">🚗 Your Driver</p>
+        <p style="margin:6px 0 0;color:#444;font-size:0.85rem">
+          <strong>${driver.fullName || '—'}</strong><br>
+          📞 ${driver.phone || '—'}<br>
+          ${driver.vehicle ? `🚗 ${driver.vehicle.make || ''} ${driver.vehicle.model || ''} — <strong>${driver.vehicle.plate || ''}</strong>` : ''}
+        </p>
+      </div>
+      ${btn(LOGIN_URL, '📍 Track Your Ride')}
     `);
-    await transporter.sendMail({
-      from:    `"RidePK" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.EMAIL_USER,
-      to:      passenger.email,
-      subject,
-      html,
-      text: `Hi ${passenger.name}, your ride has been accepted by ${driver.fullName} (${driver.phone}). Vehicle: ${vehicle}. Agreed fare: Rs. ${fare}.`
-    });
+    await sendBrevoEmail({ to: passenger.email, toName: passenger.name, subject, html,
+      text: `Hi ${passenger.name}, your ride has been accepted by ${driver.fullName || 'a driver'} (${driver.phone || ''}). Pickup: ${ride.pickup}` });
     console.log('✅ Ride accepted email sent to passenger:', passenger.email);
   } catch (err) {
     console.error('❌ Ride accepted email error:', err.message);
@@ -103,107 +143,95 @@ async function sendRideAcceptedEmail(passenger, driver, ride) {
 }
 
 // ─────────────────────────────────────────────────────────
-//  2. RIDE COMPLETED — email to passenger
+//  2. RIDE COMPLETED — passenger + driver notification
 // ─────────────────────────────────────────────────────────
-async function sendRideCompletedEmail(passenger, driver, ride) {
-  if (!passenger || !passenger.email) return;
-  try {
-    const transporter = getTransporter();
-    const fare = ride.finalPrice || ride.offeredPrice || 0;
-    const subject = `RidePK — Ride Completed. Thanks for riding!`;
-    const completedAt = ride.completedAt
-      ? new Date(ride.completedAt).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' })
-      : 'N/A';
-    const html = wrap(subject, `
-      ${h1('✅ Ride Completed!')}
-      ${p(`Hi <strong>${passenger.name}</strong>, your ride has been completed. Thank you for using RidePK!`)}
-      ${table(
-        row('Driver',      driver.fullName || 'N/A') +
-        row('From',        ride.pickup    && (ride.pickup.address    || '') || 'N/A') +
-        row('To',          ride.destination && (ride.destination.address || '') || 'N/A') +
-        row('Distance',    ride.distanceKm ? `${ride.distanceKm} km` : 'N/A') +
-        row('Fare Paid',   `<strong style="color:#22c55e">Rs. ${fare}</strong>`) +
-        row('Payment',     ride.paymentMethod || 'Cash') +
-        row('Completed',   completedAt)
-      )}
-      ${p('We hope you had a great ride. Please rate your experience in the app.')}
-      ${btn(LOGIN_URL, '⭐ Rate Your Ride')}
-    `);
-    await transporter.sendMail({
-      from:    `"RidePK" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.EMAIL_USER,
-      to:      passenger.email,
-      subject,
-      html,
-      text: `Hi ${passenger.name}, your ride with ${driver.fullName} has been completed. Fare: Rs. ${fare}. Thank you for using RidePK!`
-    });
-    console.log('✅ Ride completed email sent to passenger:', passenger.email);
-  } catch (err) {
-    console.error('❌ Ride completed email error:', err.message);
+async function sendRideCompletedEmail(ride) {
+  const passenger = ride.passenger || {};
+  const driver    = ride.driver    || {};
+
+  // Email to passenger
+  if (passenger.email) {
+    try {
+      const subject = `RidePK — Ride Completed`;
+      const html = wrap(subject, `
+        ${h1('✅ Ride Completed!')}
+        ${p(`Hi <strong>${passenger.name || 'Passenger'}</strong>, your ride has been completed successfully.`)}
+        ${rideTable(ride)}
+        ${p('Thank you for choosing RidePK. We hope you had a great experience!')}
+        ${btn(LOGIN_URL, '⭐ Rate Your Ride')}
+      `);
+      await sendBrevoEmail({ to: passenger.email, toName: passenger.name, subject, html,
+        text: `Hi ${passenger.name}, your ride from ${ride.pickup} to ${ride.destination} is completed. Amount: Rs. ${ride.offeredPrice}.` });
+      console.log('✅ Ride completed email sent to passenger:', passenger.email);
+    } catch (err) {
+      console.error('❌ Ride completed email (passenger) error:', err.message);
+    }
+  }
+
+  // Email to driver
+  if (driver.email) {
+    try {
+      const subject = `RidePK — Ride Completed`;
+      const html = wrap(subject, `
+        ${h1('✅ Ride Completed!')}
+        ${p(`Hi <strong>${driver.fullName || 'Driver'}</strong>, the ride has been completed.`)}
+        ${rideTable(ride)}
+        ${p('Great work! Keep driving and earning with RidePK.')}
+        ${btn(DRIVER_URL, '🚗 Dashboard')}
+      `);
+      await sendBrevoEmail({ to: driver.email, toName: driver.fullName, subject, html,
+        text: `Hi ${driver.fullName}, ride from ${ride.pickup} to ${ride.destination} completed. Fare: Rs. ${ride.offeredPrice}.` });
+      console.log('✅ Ride completed email sent to driver:', driver.email);
+    } catch (err) {
+      console.error('❌ Ride completed email (driver) error:', err.message);
+    }
   }
 }
 
 // ─────────────────────────────────────────────────────────
-//  3. RIDE CANCELLED — email to the OTHER party
-//     cancelledBy = 'passenger' → email the driver
-//     cancelledBy = 'driver'    → email the passenger
+//  3. RIDE CANCELLED — passenger + driver notification
 // ─────────────────────────────────────────────────────────
-async function sendRideCancelledEmail(passenger, driver, ride, cancelledBy, cancelReason) {
-  try {
-    const transporter = getTransporter();
-    const reason = cancelReason || 'No reason provided';
+async function sendRideCancelledEmail(ride, cancelledBy) {
+  const passenger = ride.passenger || {};
+  const driver    = ride.driver    || {};
+  const by        = cancelledBy === 'driver' ? 'the driver' : 'the passenger';
 
-    // Email the driver if passenger cancelled (and driver is assigned)
-    if (cancelledBy === 'passenger' && driver && driver.email) {
-      const subject = `RidePK — Ride Cancelled by Passenger`;
+  // Email to passenger
+  if (passenger.email) {
+    try {
+      const subject = `RidePK — Ride Cancelled`;
       const html = wrap(subject, `
         ${h1('❌ Ride Cancelled')}
-        ${p(`Hi <strong>${driver.fullName}</strong>, the passenger has cancelled this ride.`)}
-        ${table(
-          row('Passenger',   passenger ? (passenger.name || 'N/A') : 'N/A') +
-          row('Pickup',      ride.pickup && (ride.pickup.address || '') || 'N/A') +
-          row('Reason',      reason)
-        )}
-        ${p('You are now free to accept new ride requests.')}
-        ${btn(DRIVER_LOGIN_URL, '🚗 Back to Dashboard')}
+        ${p(`Hi <strong>${passenger.name || 'Passenger'}</strong>, your ride has been cancelled by ${by}.`)}
+        ${rideTable(ride)}
+        ${p('You can book a new ride anytime.')}
+        ${btn(LOGIN_URL, '🔄 Book Again')}
       `);
-      await transporter.sendMail({
-        from:    `"RidePK" <${process.env.EMAIL_USER}>`,
-        replyTo: process.env.EMAIL_USER,
-        to:      driver.email,
-        subject,
-        html,
-        text: `Hi ${driver.fullName}, the passenger cancelled the ride. Reason: ${reason}.`
-      });
-      console.log('✅ Ride cancelled email sent to driver:', driver.email);
-    }
-
-    // Email the passenger if driver cancelled (or system cancelled)
-    if (cancelledBy !== 'passenger' && passenger && passenger.email) {
-      const subject = `RidePK — Your Ride Was Cancelled`;
-      const html = wrap(subject, `
-        ${h1('❌ Your Ride Was Cancelled')}
-        ${p(`Hi <strong>${passenger.name}</strong>, unfortunately your ride has been cancelled.`)}
-        ${table(
-          row('Cancelled by', cancelledBy === 'driver' ? 'Driver' : 'System') +
-          row('Pickup',       ride.pickup && (ride.pickup.address || '') || 'N/A') +
-          row('Reason',       reason)
-        )}
-        ${p('We apologise for the inconvenience. Please book a new ride — another driver will be with you shortly.')}
-        ${btn(LOGIN_URL, '🔄 Book a New Ride')}
-      `);
-      await transporter.sendMail({
-        from:    `"RidePK" <${process.env.EMAIL_USER}>`,
-        replyTo: process.env.EMAIL_USER,
-        to:      passenger.email,
-        subject,
-        html,
-        text: `Hi ${passenger.name}, your ride was cancelled by ${cancelledBy === 'driver' ? 'the driver' : 'the system'}. Reason: ${reason}. Please book a new ride.`
-      });
+      await sendBrevoEmail({ to: passenger.email, toName: passenger.name, subject, html,
+        text: `Hi ${passenger.name}, your ride from ${ride.pickup} to ${ride.destination} was cancelled by ${by}.` });
       console.log('✅ Ride cancelled email sent to passenger:', passenger.email);
+    } catch (err) {
+      console.error('❌ Ride cancelled email (passenger) error:', err.message);
     }
-  } catch (err) {
-    console.error('❌ Ride cancelled email error:', err.message);
+  }
+
+  // Email to driver (if they exist and cancellation was by passenger)
+  if (driver.email && cancelledBy !== 'driver') {
+    try {
+      const subject = `RidePK — Ride Cancelled by Passenger`;
+      const html = wrap(subject, `
+        ${h1('❌ Ride Cancelled by Passenger')}
+        ${p(`Hi <strong>${driver.fullName || 'Driver'}</strong>, the passenger has cancelled the ride.`)}
+        ${rideTable(ride)}
+        ${p('You can continue accepting new ride requests from your dashboard.')}
+        ${btn(DRIVER_URL, '🚗 Dashboard')}
+      `);
+      await sendBrevoEmail({ to: driver.email, toName: driver.fullName, subject, html,
+        text: `Hi ${driver.fullName}, the ride from ${ride.pickup} to ${ride.destination} was cancelled by the passenger.` });
+      console.log('✅ Ride cancelled email sent to driver:', driver.email);
+    } catch (err) {
+      console.error('❌ Ride cancelled email (driver) error:', err.message);
+    }
   }
 }
 
