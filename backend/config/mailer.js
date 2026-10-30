@@ -57,9 +57,9 @@ function sendBrevoEmail({ to, toName, subject, html, text }) {
 
 // Trim trailing slash so links never have double slashes
 const BASE          = (process.env.FRONTEND_URL || 'https://ridepk-frontend.vercel.app').replace(/\/$/, '');
-const LOGIN_URL        = BASE + '/frontend/login.html';
-const DRIVER_LOGIN_URL = BASE + '/frontend/driver-login.html';
-const ADMIN_URL        = BASE + '/frontend/admin-login.html';
+const LOGIN_URL        = BASE + '/login.html';
+const DRIVER_LOGIN_URL = BASE + '/driver-login.html';
+const ADMIN_URL        = BASE + '/admin-login.html';
 const ADMIN_EMAIL      = process.env.ADMIN_EMAIL || '';
 
 // ── Brand colours ──────────────────────────────────────

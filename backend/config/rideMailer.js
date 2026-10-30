@@ -56,8 +56,8 @@ function sendBrevoEmail({ to, toName, subject, html, text }) {
 }
 
 const BASE          = (process.env.FRONTEND_URL || 'https://ridepk-frontend.vercel.app').replace(/\/$/, '');
-const LOGIN_URL     = BASE + '/frontend/login.html';
-const DRIVER_URL    = BASE + '/frontend/driver-login.html';
+const LOGIN_URL     = BASE + '/login.html';
+const DRIVER_URL    = BASE + '/driver-login.html';
 const ADMIN_EMAIL   = process.env.ADMIN_EMAIL || '';
 
 // ── Brand colours ──────────────────────────────────────
