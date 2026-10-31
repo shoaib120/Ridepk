@@ -1774,7 +1774,13 @@ function _applyGpsPosition(pos, highAccuracy) {
       setMapMarker('pickup', lat, lng, locName);
     })
     .catch(function() {
-      document.getElementById('detect-status').textContent = '✅ GPS detected — address lookup failed';
+      // Nominatim failed — GPS coords are already set correctly, just keep coordinate label
+      coordsByName[rawLabel] = { lat: lat, lng: lng };
+      if (!document.getElementById('pickup-input').dataset.userTyped) {
+        document.getElementById('pickup-input').value = rawLabel;
+      }
+      setMapMarker('pickup', lat, lng, rawLabel);
+      document.getElementById('detect-status').textContent = '✅ GPS detected (' + Math.round(acc) + 'm accuracy)';
       document.getElementById('detect-status').style.color = '#27ae60';
     });
 }
