@@ -1736,6 +1736,7 @@ function _applyGpsPosition(pos, highAccuracy) {
     return;
   }
 
+  var isFirstFix = !_gpsAccepted;
   userLat = lat;
   userLng = lng;
   _gpsAccepted = true;
@@ -1750,7 +1751,10 @@ function _applyGpsPosition(pos, highAccuracy) {
   document.getElementById('detect-status').textContent = accStr + ' GPS locked (' + Math.round(acc) + 'm accuracy) — getting address…';
   document.getElementById('detect-status').style.color = '#666';
   setMapMarker('pickup', lat, lng, rawLabel);
-  map.setView([lat, lng], acc < 100 ? 17 : acc < 500 ? 15 : 13);
+  // Only pan/zoom on the very first fix — later passes update pin silently
+  if (isFirstFix) {
+    map.setView([lat, lng], acc < 100 ? 17 : acc < 500 ? 15 : 13);
+  }
   hideLocBanner();
 
   // Reverse geocode for friendly name
