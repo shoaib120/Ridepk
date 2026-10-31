@@ -1757,9 +1757,22 @@ function _applyGpsPosition(pos, highAccuracy) {
   }
   hideLocBanner();
 
-  // Reverse geocode for friendly name
+  // Reverse geocode for friendly name — use AbortController for timeout
   var revUrl = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&accept-language=en';
-  fetch(revUrl, { headers: { 'User-Agent': 'RidePK/1.0 (ridepk-frontend.vercel.app)' } })
+  var abortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var abortTimer = abortCtrl ? setTimeout(function() { abortCtrl.abort(); }, 8000) : null;
+  function applyLocName(locName) {
+    clearTimeout(abortTimer);
+    if (!locName || locName.length < 2) locName = rawLabel;
+    coordsByName[locName] = { lat: lat, lng: lng };
+    if (!document.getElementById('pickup-input').dataset.userTyped) {
+      document.getElementById('pickup-input').value = locName;
+    }
+    document.getElementById('detect-status').textContent = '✅ Location set (' + Math.round(acc) + 'm accuracy)';
+    document.getElementById('detect-status').style.color = '#27ae60';
+    setMapMarker('pickup', lat, lng, locName);
+  }
+  fetch(revUrl, abortCtrl ? { signal: abortCtrl.signal } : {})
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var locName = '';
@@ -1768,24 +1781,10 @@ function _applyGpsPosition(pos, highAccuracy) {
         locName = a.shop || a.amenity || a.building || a.road || a.suburb || a.village || a.town || a.city_district || a.city || '';
         if (!locName && data.display_name) locName = data.display_name.split(',')[0].trim();
       }
-      if (!locName || locName.length < 2) locName = rawLabel;
-      coordsByName[locName] = { lat: lat, lng: lng };
-      if (!document.getElementById('pickup-input').dataset.userTyped) {
-        document.getElementById('pickup-input').value = locName;
-      }
-      document.getElementById('detect-status').textContent = '✅ Location: ' + locName + ' (' + Math.round(acc) + 'm)';
-      document.getElementById('detect-status').style.color = '#27ae60';
-      setMapMarker('pickup', lat, lng, locName);
+      applyLocName(locName);
     })
     .catch(function() {
-      // Nominatim failed — GPS coords are already set correctly, just keep coordinate label
-      coordsByName[rawLabel] = { lat: lat, lng: lng };
-      if (!document.getElementById('pickup-input').dataset.userTyped) {
-        document.getElementById('pickup-input').value = rawLabel;
-      }
-      setMapMarker('pickup', lat, lng, rawLabel);
-      document.getElementById('detect-status').textContent = '✅ GPS detected (' + Math.round(acc) + 'm accuracy)';
-      document.getElementById('detect-status').style.color = '#27ae60';
+      applyLocName(rawLabel);
     });
 }
 
