@@ -31,7 +31,7 @@ const driverSchema = new mongoose.Schema({
     type:  { type: String, enum: ['car','suv','van','bike','rickshaw'], default: 'car' }
   },
 
-  // Uploaded documents (filenames stored here — served at /uploads/<filename>)
+  // Uploaded documents (Cloudinary URLs stored here)
   documents: {
     cnicFront:     { type: String, default: '' },
     cnicBack:      { type: String, default: '' },
@@ -73,7 +73,7 @@ const driverSchema = new mongoose.Schema({
   rejectionReason: { type: String, default: '' },
   role: { type: String, default: 'driver' },
 
-  // Subscription
+  // Current subscription
   subscription: {
     plan:          { type: String, enum: ['monthly', 'yearly'], default: 'monthly' },
     isActive:      { type: Boolean, default: false },
@@ -83,8 +83,26 @@ const driverSchema = new mongoose.Schema({
     submittedAt:   { type: Date },
     reviewedAt:    { type: Date },
     reviewedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
-    proofImage:    { type: String, default: '' }
-  }
+    proofImage:    { type: String, default: '' },
+    paymentMethod: { type: String, default: '' },
+    vehicleTier:   { type: String, default: '' },
+    amount:        { type: Number, default: 0 }
+  },
+
+  // Full history of all past subscription payments — never deleted
+  subscriptionHistory: [
+    {
+      plan:          { type: String },
+      amount:        { type: Number },
+      paymentMethod: { type: String },
+      paymentStatus: { type: String },
+      proofImage:    { type: String },
+      submittedAt:   { type: Date },
+      reviewedAt:    { type: Date },
+      startDate:     { type: Date },
+      endDate:       { type: Date }
+    }
+  ]
 
 }, { timestamps: true });
 

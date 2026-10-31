@@ -1,25 +1,27 @@
 // =====================================================
-//  middleware/upload.js  —  File Upload (Multer)
+//  middleware/upload.js  —  File Upload (Multer + Cloudinary)
 //  Handles driver document uploads (CNIC, license etc)
 // =====================================================
-const multer = require('multer');
-const path   = require('path');
-const fs     = require('fs');
+const multer              = require('multer');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary          = require('cloudinary').v2;
+const path                = require('path');
 
-// Make sure uploads folder exists
-const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-// ===== STORAGE SETTINGS =====
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // e.g.  driver-1234567890-cnic-front.jpg
-    const uniqueName = `driver-${Date.now()}-${file.fieldname}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
+// ===== CLOUDINARY STORAGE =====
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: (req, file) => ({
+    folder:         'ridepk/documents',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
+    public_id:      `driver-${Date.now()}-${file.fieldname}`
+  })
 });
 
 // ===== FILE TYPE FILTER =====

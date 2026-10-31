@@ -57,15 +57,14 @@ const registerDriver = async (req, res) => {
     const cnicExists = await Driver.findOne({ cnic });
     if (cnicExists) return res.status(400).json({ message: 'A driver with this CNIC already exists.' });
 
-    // Handle uploaded document paths
-    // ⚠️  Store only the FILENAME — the backend serves files at /uploads/<filename>
+    // Handle uploaded document paths — Cloudinary returns full URL in .path
     const documents = {};
-    if (req.files['cnic-front'])    documents.cnicFront      = req.files['cnic-front'][0].filename;
-    if (req.files['cnic-back'])     documents.cnicBack       = req.files['cnic-back'][0].filename;
-    if (req.files['license'])       documents.drivingLicense = req.files['license'][0].filename;
-    if (req.files['vehicle-reg'])   documents.vehicleReg     = req.files['vehicle-reg'][0].filename;
-    if (req.files['photo'])         documents.driverPhoto    = req.files['photo'][0].filename;
-    if (req.files['vehicle-photo']) documents.vehiclePhoto   = req.files['vehicle-photo'][0].filename;
+    if (req.files['cnic-front'])    documents.cnicFront      = req.files['cnic-front'][0].path;
+    if (req.files['cnic-back'])     documents.cnicBack       = req.files['cnic-back'][0].path;
+    if (req.files['license'])       documents.drivingLicense = req.files['license'][0].path;
+    if (req.files['vehicle-reg'])   documents.vehicleReg     = req.files['vehicle-reg'][0].path;
+    if (req.files['photo'])         documents.driverPhoto    = req.files['photo'][0].path;
+    if (req.files['vehicle-photo']) documents.vehiclePhoto   = req.files['vehicle-photo'][0].path;
 
     // Parse vehicle if sent as JSON string (multipart/form-data)
     let vehicleData = vehicle;
@@ -248,21 +247,18 @@ const updateLocation = async (req, res) => {
 };
 
 // ── Vehicle tier → price mapping ──────────────────────────────────────────
-// Prices are per vehicle type. The dashboard uses this to show the correct
-// price for the driver's own vehicle tier and to show a 3-column plan grid.
 const TIER_PRICES = {
   motorbike: { monthly: 1000,  yearly: 10000 },
   rickshaw:  { monthly: 2000,  yearly: 20000 },
   car:       { monthly: 3000,  yearly: 30000 }
 };
 
-// Derive the tier key from the driver's vehicle type string
 function getTierKey(vehicleType) {
   if (!vehicleType) return 'car';
   const t = vehicleType.toLowerCase();
   if (t === 'motorbike' || t === 'motorcycle' || t === 'bike') return 'motorbike';
   if (t === 'rickshaw') return 'rickshaw';
-  return 'car'; // car, sedan, suv, etc.
+  return 'car';
 }
 
 // =====================
@@ -271,7 +267,6 @@ function getTierKey(vehicleType) {
 // =====================
 const getSubscriptionPlans = async (req, res) => {
   try {
-    // Load the driver so we can determine their vehicle tier
     const driver = await Driver.findById(req.user._id).select('vehicle');
     const vehicleType = driver && driver.vehicle && driver.vehicle.type;
     const tierKey     = getTierKey(vehicleType);
@@ -280,8 +275,8 @@ const getSubscriptionPlans = async (req, res) => {
     res.json({
       success:     true,
       vehicleTier: tierKey,
-      prices,                // { monthly: N, yearly: N } for this driver's tier
-      allTiers:    TIER_PRICES  // full grid so the dashboard can render all 3 cards
+      prices,
+      allTiers:    TIER_PRICES
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error.' });
@@ -294,9 +289,13 @@ const getSubscriptionPlans = async (req, res) => {
 // =====================
 const getSubscriptionStatus = async (req, res) => {
   try {
-    const driver = await Driver.findById(req.user._id).select('subscription fullName');
+    const driver = await Driver.findById(req.user._id).select('subscription subscriptionHistory fullName');
     if (!driver) return res.status(404).json({ message: 'Driver not found.' });
-    res.json({ success: true, subscription: driver.subscription });
+    res.json({
+      success:             true,
+      subscription:        driver.subscription,
+      subscriptionHistory: driver.subscriptionHistory || []
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error.' });
   }
@@ -312,13 +311,30 @@ const submitSubscriptionProof = async (req, res) => {
     const driver = await Driver.findById(req.user._id);
     if (!driver) return res.status(404).json({ message: 'Driver not found.' });
 
-    const proofImage = req.file ? req.file.filename : '';
+    // Cloudinary returns full URL in .path
+    const proofImage = req.file ? req.file.path : '';
 
     // Determine tier + amount from this driver's vehicle type
-    const tierKey = getTierKey(driver.vehicle && driver.vehicle.type);
-    const prices  = TIER_PRICES[tierKey] || TIER_PRICES.car;
+    const tierKey    = getTierKey(driver.vehicle && driver.vehicle.type);
+    const prices     = TIER_PRICES[tierKey] || TIER_PRICES.car;
     const chosenPlan = (plan === 'yearly') ? 'yearly' : 'monthly';
-    const amount  = prices[chosenPlan];
+    const amount     = prices[chosenPlan];
+
+    // Save to history before overwriting current subscription
+    if (!driver.subscriptionHistory) driver.subscriptionHistory = [];
+    if (driver.subscription && driver.subscription.proofImage) {
+      driver.subscriptionHistory.push({
+        plan:          driver.subscription.plan,
+        amount:        driver.subscription.amount,
+        paymentMethod: driver.subscription.paymentMethod,
+        paymentStatus: driver.subscription.paymentStatus,
+        proofImage:    driver.subscription.proofImage,
+        submittedAt:   driver.subscription.submittedAt,
+        reviewedAt:    driver.subscription.reviewedAt,
+        startDate:     driver.subscription.startDate,
+        endDate:       driver.subscription.endDate
+      });
+    }
 
     driver.subscription.plan          = chosenPlan;
     driver.subscription.paymentStatus = 'pending';
