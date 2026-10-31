@@ -19,6 +19,17 @@
         <li><a href="login.html" class="btn-nav-outline">Login</a></li>
         <li><a href="register.html" class="btn-nav-fill">Sign Up</a></li>
       </ul>
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+    <div class="nav-mobile" id="nav-mobile">
+      <a href="cities.html">Cities</a>
+      <a href="driver-register.html">Drive With Us</a>
+      <a href="login.html" class="btn-nav-outline">Login</a>
+      <a href="register.html" class="btn-nav-fill">Sign Up</a>
     </div>
   </nav>
 
@@ -198,6 +209,20 @@
       document.getElementById('tab-' + name).classList.remove('hidden');
       event.target.classList.add('active');
     }
+    // Hamburger menu
+    const hamburger = document.getElementById('nav-hamburger');
+    const mobileMenu = document.getElementById('nav-mobile');
+    hamburger.addEventListener('click', () => {
+      hamburger.classList.toggle('open');
+      mobileMenu.classList.toggle('open');
+    });
+    // Close mobile menu when a link is clicked
+    mobileMenu.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        hamburger.classList.remove('open');
+        mobileMenu.classList.remove('open');
+      });
+    });
   </script>
 </body>
 </html>
