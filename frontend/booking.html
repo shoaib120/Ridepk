@@ -1759,7 +1759,7 @@ function _applyGpsPosition(pos, highAccuracy) {
 
   // Reverse geocode for friendly name
   var revUrl = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&accept-language=en';
-  fetch(revUrl)
+  fetch(revUrl, { headers: { 'User-Agent': 'RidePK/1.0 (ridepk-frontend.vercel.app)' } })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var locName = '';
