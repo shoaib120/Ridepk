@@ -1608,17 +1608,49 @@ function selectSuggestion(type, name, lat, lng) {
   var finalLat = (lat != null && lat !== '') ? parseFloat(lat) : null;
   var finalLng = (lng != null && lng !== '') ? parseFloat(lng) : null;
 
-  // Use passed coords (from Nominatim or pre-resolved local)
+  // If Nominatim already gave us coords (fromApi item), use them directly — real coords
   if (finalLat && finalLng) {
     coordsByName[name] = { lat: finalLat, lng: finalLng };
     setMapMarker(type, finalLat, finalLng, name);
     return;
   }
-  // Final fallback: lookup table
-  var coords = coordsByName[name];
-  if (coords) {
-    setMapMarker(type, coords.lat, coords.lng, name);
-  }
+
+  // For local dictionary suggestions — always verify with Nominatim for real coords
+  // Show a "locating…" indicator while we look it up
+  var inputEl = document.getElementById(id);
+  inputEl.placeholder = '📍 Locating ' + name + '…';
+
+  var searchUrl = 'https://nominatim.openstreetmap.org/search?' +
+    'q=' + encodeURIComponent(name + ' Pakistan') +
+    '&format=json&limit=1&countrycodes=pk&accept-language=en' +
+    '&viewbox=72.5,35.2,75.5,31.5&bounded=0';
+
+  fetch(searchUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(results) {
+      inputEl.placeholder = '';
+      if (results && results.length > 0) {
+        var r = results[0];
+        var realLat = parseFloat(r.lat);
+        var realLng = parseFloat(r.lon);
+        coordsByName[name] = { lat: realLat, lng: realLng };
+        setMapMarker(type, realLat, realLng, name);
+      } else {
+        // Nominatim found nothing — fall back to dictionary coords if available
+        var dictCoords = coordsByName[name];
+        if (dictCoords) {
+          setMapMarker(type, dictCoords.lat, dictCoords.lng, name);
+        }
+      }
+    })
+    .catch(function() {
+      inputEl.placeholder = '';
+      // Network error — use dictionary coords as last resort
+      var dictCoords = coordsByName[name];
+      if (dictCoords) {
+        setMapMarker(type, dictCoords.lat, dictCoords.lng, name);
+      }
+    });
 }
 
 // ── Ride mode (local vs intercity) ──
