@@ -1272,14 +1272,67 @@ function tryOsrmRoute(lat1, lng1, lat2, lng2, fallbackFn) {
     .catch(function() { fallbackFn(); });
 }
 
-// ── Main entry: try OSRM first (shortest road route), fallback to Valhalla ──
+// ── Main entry: run OSRM + Valhalla IN PARALLEL, use whichever gives shorter distance ──
 function drawRealRoute(lat1, lng1, lat2, lng2) {
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-  tryOsrmRoute(lat1, lng1, lat2, lng2, function() {
-    tryValhallaRoute(lat1, lng1, lat2, lng2, function() {
+
+  var osrmDone = false, valDone = false;
+  var osrmResult = null, valResult = null;
+
+  function pickBest() {
+    if (!osrmDone || !valDone) return; // wait for both
+    if (osrmResult && valResult) {
+      // Both succeeded — pick shorter distance
+      if (osrmResult.distance <= valResult.distanceM) {
+        applyOsrmRoute(osrmResult);
+      } else {
+        applyValhallaRoute(valResult.trip);
+      }
+    } else if (osrmResult) {
+      applyOsrmRoute(osrmResult);
+    } else if (valResult) {
+      applyValhallaRoute(valResult.trip);
+    } else {
       drawFallbackLine(lat1, lng1, lat2, lng2);
-    });
+    }
+  }
+
+  // OSRM fetch
+  var osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' +
+    lng1 + ',' + lat1 + ';' + lng2 + ',' + lat2 +
+    '?overview=full&geometries=geojson&alternatives=true&steps=false&annotations=false';
+  fetch(osrmUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.routes && data.routes[0]) {
+        var best = data.routes[0];
+        for (var i = 1; i < data.routes.length; i++) {
+          if (data.routes[i].distance < best.distance) best = data.routes[i];
+        }
+        osrmResult = best;
+      }
+      osrmDone = true; pickBest();
+    })
+    .catch(function() { osrmDone = true; pickBest(); });
+
+  // Valhalla fetch in parallel
+  var vBody = JSON.stringify({
+    locations: [{ lon: lng1, lat: lat1 }, { lon: lng2, lat: lat2 }],
+    costing: 'auto',
+    costing_options: { auto: { use_ferry: 0, use_highways: 0.5, use_tolls: 0.5 } },
+    directions_options: { units: 'km' }
   });
+  fetch('https://valhalla1.openstreetmap.de/route', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: vBody
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.trip && data.trip.summary) {
+      valResult = { trip: data.trip, distanceM: (data.trip.summary.length || 0) * 1000 };
+    }
+    valDone = true; pickBest();
+  })
+  .catch(function() { valDone = true; pickBest(); });
 }
 
 function drawFallbackLine(lat1, lng1, lat2, lng2) {
@@ -1684,41 +1737,28 @@ function detectLocation() {
     return;
   }
 
-  // ── Pass 1: fast, allow cached fix (maximumAge 60s, low accuracy) ──
-  // This gives an instant result on most devices — cell tower / WiFi location
+  // ── Pass 1: instant — use any cached position (up to 5 min old) ──
   navigator.geolocation.getCurrentPosition(
     function(pos) { _applyGpsPosition(pos, false); },
-    function() { /* fast pass failed silently — high-accuracy pass will try */ },
-    { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+    function() { /* silent — pass 2 will handle */ },
+    { enableHighAccuracy: false, timeout: 3000, maximumAge: 300000 }
   );
 
-  // ── Pass 2: high accuracy (GPS chip) — runs in parallel, refines if better ──
+  // ── Pass 2: high accuracy GPS — runs in parallel ──
   navigator.geolocation.getCurrentPosition(
     function(pos) { _applyGpsPosition(pos, true); },
     function(err) {
-      // Only show an error if we NEVER got a fix at all
       if (!_gpsAccepted) {
-        var msg = '❌ Could not get GPS. Please type your pickup location.';
-        if (err && err.code === 1) msg = '❌ Location permission denied. Please allow location access.';
+        var msg = '❌ Could not get location. Please type your pickup.';
+        if (err && err.code === 1) msg = '❌ Location permission denied. Please allow in browser settings.';
         if (err && err.code === 3) msg = '⏱️ GPS timed out. Type your location or tap the map.';
         document.getElementById('detect-status').textContent = msg;
         document.getElementById('detect-status').style.color = '#e74c3c';
-        if (passengerCity) {
-          var cc = getPassengerCityCoords(passengerCity);
-          if (cc) map.setView(cc, 13);
-        }
+        if (passengerCity) { var cc = getPassengerCityCoords(passengerCity); if (cc) map.setView(cc, 13); }
         showLocBanner();
       }
     },
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
-  );
-
-  // ── Pass 3: watchPosition — keeps updating while passenger is on this page ──
-  if (_gpsWatchId !== null) { navigator.geolocation.clearWatch(_gpsWatchId); }
-  _gpsWatchId = navigator.geolocation.watchPosition(
-    function(pos) { _applyGpsPosition(pos, false); },
-    function() {},
-    { enableHighAccuracy: false, maximumAge: 30000, timeout: 30000 }
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
   );
 }
 
@@ -1772,7 +1812,7 @@ function _applyGpsPosition(pos, highAccuracy) {
   // Reverse geocode once — if it returns a name, update label + redraw marker so route works
   var revUrl = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&accept-language=en';
   var abortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  var abortTimer = abortCtrl ? setTimeout(function() { abortCtrl.abort(); }, 6000) : null;
+  var abortTimer = abortCtrl ? setTimeout(function() { abortCtrl.abort(); }, 4000) : null;
 
   function applyLocName(locName) {
     clearTimeout(abortTimer);
