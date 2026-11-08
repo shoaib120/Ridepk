@@ -1428,67 +1428,69 @@ var nominatimCache  = {};
 
 function onLocInput(input, type) {
   var q = input.value.trim();
-  var localMatches = getLocalSuggestions(q);
-  // Always show local matches immediately
-  showSuggestions(type, localMatches, []);
-  // Skip Nominatim if we have a strong local match or query is too short
   clearTimeout(nominatimTimers[type]);
-  if (q.length < 3) return;
-  // Always try Nominatim too (finds sub-places not in our dict)
+  if (q.length < 2) {
+    document.getElementById(type + '-suggestions').style.display = 'none';
+    return;
+  }
+  // Show only Nominatim results — real places from the map, no hardcoded dictionary
   nominatimTimers[type] = setTimeout(function() {
     fetchNominatim(q, type);
-  }, 320);
+  }, 400);
 }
 
 function fetchNominatim(q, type) {
   var cacheKey = q.toLowerCase();
   if (nominatimCache[cacheKey]) {
-    mergeAndShow(type, q, nominatimCache[cacheKey]);
+    showNominatimResults(type, q, nominatimCache[cacheKey]);
     return;
   }
-  // Smart query: if it looks like just a place name (no city/country context), add AJK context
-  // but use bounded=0 so Nominatim can search all of Pakistan too
-  var hasContext = /pakistan|ajk|kashmir|punjab|islamabad|rawalpindi/i.test(q);
-  var searchQ = hasContext ? q : (q + ' Pakistan');
-  // Two-pass search: first try Mirpur-specific, then broader Pakistan
-  var mirpurUrl = 'https://nominatim.openstreetmap.org/search?' +
-    'q=' + encodeURIComponent(q + ' Mirpur AJK Pakistan') +
-    '&format=json' +
-    '&viewbox=73.5,33.7,74.2,33.0' +
-    '&bounded=1' +
-    '&limit=5' +
-    '&countrycodes=pk' +
-    '&accept-language=en';
-  // Fallback: AJK + Punjab + Islamabad region — viewbox excludes Gilgit-Baltistan (lat > 35.2)
+
+  // Show loading indicator
+  var c = document.getElementById(type + '-suggestions');
+  c.innerHTML = '<div style="padding:10px 14px;font-size:0.82rem;color:#aaa;">🔍 Searching…</div>';
+  c.style.display = 'block';
+
+  // Search Pakistan — no bounding box so ALL real places are found
   var url = 'https://nominatim.openstreetmap.org/search?' +
-    'q=' + encodeURIComponent(searchQ) +
+    'q=' + encodeURIComponent(q) +
     '&format=json' +
-    '&viewbox=72.5,35.2,75.5,31.5' +
-    '&bounded=0' +
     '&limit=8' +
     '&countrycodes=pk' +
     '&accept-language=en';
 
-  // Try Mirpur-bounded search first, fall back to regional
-  fetch(mirpurUrl)
+  fetch(url)
     .then(function(r) { return r.json(); })
-    .then(function(mirpurResults) {
-      if (mirpurResults && mirpurResults.length > 0) {
-        nominatimCache[cacheKey] = mirpurResults;
-        mergeAndShow(type, q, mirpurResults);
-      } else {
-        return fetch(url)
-          .then(function(r) { return r.json(); })
-          .then(function(results) {
-            // Filter out results north of 35.2 (Gilgit-Baltistan) unless query explicitly targets them
-            var filtered = results.filter(function(r) { return parseFloat(r.lat) <= 35.2; });
-            var toShow = filtered.length > 0 ? filtered : results;
-            nominatimCache[cacheKey] = toShow;
-            mergeAndShow(type, q, toShow);
-          });
-      }
+    .then(function(results) {
+      // Check user hasn't typed something else while we waited
+      var currentQ = document.getElementById(type === 'pickup' ? 'pickup-input' : 'dest-input').value.trim();
+      if (currentQ.toLowerCase() !== q.toLowerCase()) return;
+      nominatimCache[cacheKey] = results || [];
+      showNominatimResults(type, q, results || []);
     })
-    .catch(function() { /* network error — just keep local results */ });
+    .catch(function() {
+      var c2 = document.getElementById(type + '-suggestions');
+      c2.innerHTML = '<div style="padding:10px 14px;font-size:0.82rem;color:#e74c3c;">⚠️ Search failed. Check connection.</div>';
+      c2.style.display = 'block';
+    });
+}
+
+function showNominatimResults(type, q, results) {
+  var c = document.getElementById(type + '-suggestions');
+  if (!results || results.length === 0) {
+    c.innerHTML = '<div style="padding:10px 14px;font-size:0.82rem;color:#aaa;">No places found for "' + q + '"</div>';
+    c.style.display = 'block';
+    return;
+  }
+  c.innerHTML = results.map(function(r) {
+    var displayName = formatNominatimName(r.display_name);
+    var icon = getNominatimIcon(r.type, r.class);
+    var safeName = displayName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return '<div class="suggestion-item" onmousedown="selectSuggestion(\'' + type + '\',\'' + safeName + '\',' + r.lat + ',' + r.lon + ')">' +
+      '<span class="sug-icon">' + icon + '</span>' +
+      '<span>' + displayName + '</span></div>';
+  }).join('');
+  c.style.display = 'block';
 }
 
 function mergeAndShow(type, q, nominatimResults) {
@@ -1548,7 +1550,7 @@ function onLocFocus(type) {
   clearTimeout(blurTimer[type]);
   var id = type === 'pickup' ? 'pickup-input' : 'dest-input';
   var q  = document.getElementById(id).value.trim();
-  showSuggestions(type, getLocalSuggestions(q), []);
+  if (q.length >= 2) fetchNominatim(q, type);
 }
 function onLocBlur(type) {
   blurTimer[type] = setTimeout(function() {
@@ -1605,52 +1607,13 @@ function selectSuggestion(type, name, lat, lng) {
   document.getElementById(id).value = name;
   document.getElementById(type + '-suggestions').style.display = 'none';
 
-  var finalLat = (lat != null && lat !== '') ? parseFloat(lat) : null;
-  var finalLng = (lng != null && lng !== '') ? parseFloat(lng) : null;
+  var finalLat = parseFloat(lat);
+  var finalLng = parseFloat(lng);
 
-  // If Nominatim already gave us coords (fromApi item), use them directly — real coords
-  if (finalLat && finalLng) {
+  if (!isNaN(finalLat) && !isNaN(finalLng)) {
     coordsByName[name] = { lat: finalLat, lng: finalLng };
     setMapMarker(type, finalLat, finalLng, name);
-    return;
   }
-
-  // For local dictionary suggestions — always verify with Nominatim for real coords
-  // Show a "locating…" indicator while we look it up
-  var inputEl = document.getElementById(id);
-  inputEl.placeholder = '📍 Locating ' + name + '…';
-
-  var searchUrl = 'https://nominatim.openstreetmap.org/search?' +
-    'q=' + encodeURIComponent(name + ' Pakistan') +
-    '&format=json&limit=1&countrycodes=pk&accept-language=en' +
-    '&viewbox=72.5,35.2,75.5,31.5&bounded=0';
-
-  fetch(searchUrl)
-    .then(function(r) { return r.json(); })
-    .then(function(results) {
-      inputEl.placeholder = '';
-      if (results && results.length > 0) {
-        var r = results[0];
-        var realLat = parseFloat(r.lat);
-        var realLng = parseFloat(r.lon);
-        coordsByName[name] = { lat: realLat, lng: realLng };
-        setMapMarker(type, realLat, realLng, name);
-      } else {
-        // Nominatim found nothing — fall back to dictionary coords if available
-        var dictCoords = coordsByName[name];
-        if (dictCoords) {
-          setMapMarker(type, dictCoords.lat, dictCoords.lng, name);
-        }
-      }
-    })
-    .catch(function() {
-      inputEl.placeholder = '';
-      // Network error — use dictionary coords as last resort
-      var dictCoords = coordsByName[name];
-      if (dictCoords) {
-        setMapMarker(type, dictCoords.lat, dictCoords.lng, name);
-      }
-    });
 }
 
 // ── Ride mode (local vs intercity) ──
