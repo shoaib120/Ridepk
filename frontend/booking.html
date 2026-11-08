@@ -519,8 +519,8 @@ var MIRPUR_PLACES_DICT = {
   'mirpur': { lat: 33.1483, lng: 73.7468 },
   'mirpur city': { lat: 33.1483, lng: 73.7468 },
   'mirpur ajk': { lat: 33.1483, lng: 73.7468 },
-  'dadyal': { lat: 33.2640, lng: 73.7830 },
-  'dadyal city': { lat: 33.2640, lng: 73.7830 },
+  'dadyal': { lat: 33.0768, lng: 73.6617 },
+  'dadyal city': { lat: 33.0768, lng: 73.6617 },
   'kotli': { lat: 33.5150, lng: 73.9022 },
   'kotli city': { lat: 33.5150, lng: 73.9022 },
   'bhimber': { lat: 32.9735, lng: 74.0557 },
@@ -571,13 +571,13 @@ var MIRPUR_PLACES_DICT = {
   'mirpur dc office': { lat: 33.1475, lng: 73.7498 },
   'plaza mirpur': { lat: 33.1483, lng: 73.7470 },
   // === DADYAL AREA ===
-  'dadyal bazar': { lat: 33.2650, lng: 73.7840 },
-  'dadyal road': { lat: 33.2620, lng: 73.7820 },
-  'dadyal hospital': { lat: 33.2640, lng: 73.7830 },
-  'dadyal hospital (thq)': { lat: 33.2640, lng: 73.7830 },
-  'dadyal bus stand': { lat: 33.2640, lng: 73.7830 },
-  'forward dadyal': { lat: 33.2700, lng: 73.7900 },
-  'chakothi dadyal': { lat: 33.2500, lng: 73.7700 },
+  'dadyal bazar': { lat: 33.0775, lng: 73.6625 },
+  'dadyal road': { lat: 33.0760, lng: 73.6610 },
+  'dadyal hospital': { lat: 33.0768, lng: 73.6617 },
+  'dadyal hospital (thq)': { lat: 33.0768, lng: 73.6617 },
+  'dadyal bus stand': { lat: 33.0770, lng: 73.6620 },
+  'forward dadyal': { lat: 33.0800, lng: 73.6650 },
+  'chakothi dadyal': { lat: 33.0740, lng: 73.6590 },
   // === ISLAMGARH AREA ===
   'islamgarh bazar': { lat: 33.1910, lng: 73.8300 },
   'islamgarh chowk': { lat: 33.1906, lng: 73.8311 },
@@ -808,7 +808,7 @@ var MIRPUR_PLACES_DICT = {
   'government school, islamgarh': { lat: 33.1655, lng: 73.7685 },
   'masjid road, islamgarh': { lat: 33.1645, lng: 73.7668 },
   // Short alias lookups
-  'dr': { lat: 33.2640, lng: 73.7830 },   // Dadyal
+  'dr': { lat: 33.0768, lng: 73.6617 },   // Dadyal
   'mg': { lat: 33.1387, lng: 73.6445 },   // Mangla
   'isg': { lat: 33.2128, lng: 73.8012 },  // Islamgarh
   'kl': { lat: 33.5150, lng: 73.9022 },   // Kotli
@@ -973,11 +973,11 @@ var _EXTRA_LANDMARKS = [
   { name: 'Mangla Lake',                      lat: 33.1520, lng: 73.6520 },
 
   // ── DADYAL ──
-  { name: 'Dadyal',                           lat: 33.2640, lng: 73.7830 },
-  { name: 'Dadyal Bazar',                     lat: 33.2650, lng: 73.7840 },
-  { name: 'Dadyal Bus Stand',                 lat: 33.2640, lng: 73.7830 },
-  { name: 'Dadyal Road',                      lat: 33.2620, lng: 73.7820 },
-  { name: 'Dadyal Hospital (THQ)',            lat: 33.2640, lng: 73.7830 },
+  { name: 'Dadyal',                           lat: 33.0768, lng: 73.6617 },
+  { name: 'Dadyal Bazar',                     lat: 33.0775, lng: 73.6625 },
+  { name: 'Dadyal Bus Stand',                 lat: 33.0770, lng: 73.6620 },
+  { name: 'Dadyal Road',                      lat: 33.0760, lng: 73.6610 },
+  { name: 'Dadyal Hospital (THQ)',            lat: 33.0768, lng: 73.6617 },
 
   // ── KIRAN ──
   { name: 'Kiran',                            lat: 33.1250, lng: 73.7350 },
@@ -1270,11 +1270,11 @@ function tryOsrmRoute(lat1, lng1, lat2, lng2, fallbackFn) {
     .catch(function() { fallbackFn(); });
 }
 
-// ── Main entry: try Valhalla first (better local roads), fallback to OSRM ──
+// ── Main entry: try OSRM first (shortest road route), fallback to Valhalla ──
 function drawRealRoute(lat1, lng1, lat2, lng2) {
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-  tryValhallaRoute(lat1, lng1, lat2, lng2, function() {
-    tryOsrmRoute(lat1, lng1, lat2, lng2, function() {
+  tryOsrmRoute(lat1, lng1, lat2, lng2, function() {
+    tryValhallaRoute(lat1, lng1, lat2, lng2, function() {
       drawFallbackLine(lat1, lng1, lat2, lng2);
     });
   });
