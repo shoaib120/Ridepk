@@ -1741,44 +1741,55 @@ function _applyGpsPosition(pos, highAccuracy) {
   userLng = lng;
   _gpsAccepted = true;
 
-  // Immediately place/update pin and pan map
+  // After the first fix, later passes (watchPosition, high-accuracy upgrade) only
+  // update the coords silently — never change the label or redraw the marker/route
+  if (!isFirstFix) return;
+
+  // ── First fix only from here down ──
   var rawLabel = 'My Location (' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ')';
   coordsByName[rawLabel] = { lat: lat, lng: lng };
   if (!document.getElementById('pickup-input').dataset.userTyped) {
     document.getElementById('pickup-input').value = rawLabel;
   }
-  var accStr = acc < 50 ? '🎯' : acc < 200 ? '📍' : '📡';
-  document.getElementById('detect-status').textContent = accStr + ' GPS locked (' + Math.round(acc) + 'm accuracy) — getting address…';
+  document.getElementById('detect-status').textContent = '🎯 GPS locked (' + Math.round(acc) + 'm accuracy) — getting address…';
   document.getElementById('detect-status').style.color = '#666';
   setMapMarker('pickup', lat, lng, rawLabel);
-  // Only pan/zoom on the very first fix — later passes update pin silently
-  if (isFirstFix) {
-    map.setView([lat, lng], acc < 100 ? 17 : acc < 500 ? 15 : 13);
-  }
+  map.setView([lat, lng], acc < 100 ? 17 : acc < 500 ? 15 : 13);
   hideLocBanner();
 
-  // Reverse geocode for friendly name — use AbortController for timeout
+  // Reverse geocode once — if it returns a name, update label + redraw marker so route works
   var revUrl = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&accept-language=en';
   var abortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  var abortTimer = abortCtrl ? setTimeout(function() { abortCtrl.abort(); }, 8000) : null;
+  var abortTimer = abortCtrl ? setTimeout(function() { abortCtrl.abort(); }, 6000) : null;
+
   function applyLocName(locName) {
     clearTimeout(abortTimer);
     if (!locName || locName.length < 2) locName = rawLabel;
+    // Remove old rawLabel entry, register under final name
+    delete coordsByName[rawLabel];
     coordsByName[locName] = { lat: lat, lng: lng };
+    // Only update input if user hasn't typed something themselves
     if (!document.getElementById('pickup-input').dataset.userTyped) {
       document.getElementById('pickup-input').value = locName;
     }
-    document.getElementById('detect-status').textContent = '✅ Location set (' + Math.round(acc) + 'm accuracy)';
+    document.getElementById('detect-status').textContent = '✅ Location: ' + locName;
     document.getElementById('detect-status').style.color = '#27ae60';
+    // Redraw marker with final name so popup and route label are correct
     setMapMarker('pickup', lat, lng, locName);
+    // Draw route if destination is already set
+    if (destMarker) {
+      var p2 = destMarker.getLatLng();
+      drawRealRoute(lat, lng, p2.lat, p2.lng);
+    }
   }
+
   fetch(revUrl, abortCtrl ? { signal: abortCtrl.signal } : {})
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var locName = '';
       if (data && data.address) {
         var a = data.address;
-        locName = a.shop || a.amenity || a.building || a.road || a.suburb || a.village || a.town || a.city_district || a.city || '';
+        locName = a.road || a.suburb || a.village || a.town || a.city_district || a.city || a.shop || a.amenity || a.building || '';
         if (!locName && data.display_name) locName = data.display_name.split(',')[0].trim();
       }
       applyLocName(locName);
