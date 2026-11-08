@@ -1254,13 +1254,15 @@ function tryValhallaRoute(lat1, lng1, lat2, lng2, fallbackFn) {
 
 /* OSRM route — pick shortest of up to 3 alternatives */
 function tryOsrmRoute(lat1, lng1, lat2, lng2, fallbackFn) {
+  // Use OSRM with alternatives and pick the one with shortest distance
   var url = 'https://router.project-osrm.org/route/v1/driving/' +
     lng1 + ',' + lat1 + ';' + lng2 + ',' + lat2 +
-    '?overview=full&geometries=geojson&alternatives=3&continue_straight=false';
+    '?overview=full&geometries=geojson&alternatives=true&steps=false&annotations=false';
   fetch(url)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.routes || !data.routes[0]) { fallbackFn(); return; }
+      // Always pick shortest distance among all alternatives
       var best = data.routes[0];
       for (var i = 1; i < data.routes.length; i++) {
         if (data.routes[i].distance < best.distance) best = data.routes[i];
@@ -1446,49 +1448,64 @@ function fetchNominatim(q, type) {
     return;
   }
 
-  // Show loading indicator
   var c = document.getElementById(type + '-suggestions');
   c.innerHTML = '<div style="padding:10px 14px;font-size:0.82rem;color:#aaa;">🔍 Searching…</div>';
   c.style.display = 'block';
 
-  // Search Pakistan — no bounding box so ALL real places are found
-  var url = 'https://nominatim.openstreetmap.org/search?' +
+  // Run TWO searches in parallel and merge:
+  // 1. Exact query in Pakistan — finds cities, main towns
+  // 2. Query + "Mirpur AJK" context — finds small villages, sectors, local areas
+  var urlExact = 'https://nominatim.openstreetmap.org/search?' +
     'q=' + encodeURIComponent(q) +
-    '&format=json' +
-    '&limit=8' +
-    '&countrycodes=pk' +
-    '&accept-language=en';
+    '&format=json&limit=5&countrycodes=pk&accept-language=en';
 
-  fetch(url)
-    .then(function(r) { return r.json(); })
-    .then(function(results) {
-      // Check user hasn't typed something else while we waited
-      var currentQ = document.getElementById(type === 'pickup' ? 'pickup-input' : 'dest-input').value.trim();
-      if (currentQ.toLowerCase() !== q.toLowerCase()) return;
-      nominatimCache[cacheKey] = results || [];
-      showNominatimResults(type, q, results || []);
-    })
-    .catch(function() {
-      var c2 = document.getElementById(type + '-suggestions');
-      c2.innerHTML = '<div style="padding:10px 14px;font-size:0.82rem;color:#e74c3c;">⚠️ Search failed. Check connection.</div>';
-      c2.style.display = 'block';
+  var urlLocal = 'https://nominatim.openstreetmap.org/search?' +
+    'q=' + encodeURIComponent(q + ' Mirpur AJK') +
+    '&format=json&limit=5&countrycodes=pk&accept-language=en' +
+    '&viewbox=73.3,33.8,74.4,32.8&bounded=0';
+
+  Promise.all([
+    fetch(urlExact).then(function(r) { return r.json(); }).catch(function() { return []; }),
+    fetch(urlLocal).then(function(r) { return r.json(); }).catch(function() { return []; })
+  ]).then(function(allResults) {
+    var currentQ = document.getElementById(type === 'pickup' ? 'pickup-input' : 'dest-input').value.trim();
+    if (currentQ.toLowerCase() !== q.toLowerCase()) return;
+
+    // Merge: local AJK results first (more relevant), then Pakistan-wide, deduplicate by place_id
+    var seen = {};
+    var merged = [];
+    allResults[1].forEach(function(r) { // local AJK first
+      if (!seen[r.place_id]) { seen[r.place_id] = true; merged.push(r); }
     });
+    allResults[0].forEach(function(r) { // then Pakistan-wide
+      if (!seen[r.place_id]) { seen[r.place_id] = true; merged.push(r); }
+    });
+
+    nominatimCache[cacheKey] = merged;
+    showNominatimResults(type, q, merged);
+  });
 }
 
 function showNominatimResults(type, q, results) {
   var c = document.getElementById(type + '-suggestions');
   if (!results || results.length === 0) {
-    c.innerHTML = '<div style="padding:10px 14px;font-size:0.82rem;color:#aaa;">No places found for "' + q + '"</div>';
+    c.innerHTML = '<div style="padding:10px 14px;font-size:0.82rem;color:#aaa;">No places found — try a nearby landmark or main road name</div>';
     c.style.display = 'block';
     return;
   }
   c.innerHTML = results.map(function(r) {
-    var displayName = formatNominatimName(r.display_name);
+    // Show full display name so user can tell places apart
+    var parts = r.display_name.split(',');
+    var shortName = parts[0].trim();
+    var subName = parts.slice(1, 3).join(',').trim();
     var icon = getNominatimIcon(r.type, r.class);
-    var safeName = displayName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var safeName = shortName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     return '<div class="suggestion-item" onmousedown="selectSuggestion(\'' + type + '\',\'' + safeName + '\',' + r.lat + ',' + r.lon + ')">' +
       '<span class="sug-icon">' + icon + '</span>' +
-      '<span>' + displayName + '</span></div>';
+      '<span style="display:flex;flex-direction:column;line-height:1.3">' +
+        '<b style="font-size:0.85rem">' + shortName + '</b>' +
+        (subName ? '<small style="color:#aaa;font-size:0.75rem">' + subName + '</small>' : '') +
+      '</span></div>';
   }).join('');
   c.style.display = 'block';
 }
